@@ -1,6 +1,7 @@
 
 from flask import Flask, render_template, request
 import pandas as pd
+from flask import send_from_directory
 
 app = Flask(__name__)
 
@@ -57,6 +58,13 @@ def survey():
 
         return render_template('result.html', responses=responses, results=filtered_results)
     return render_template('survey.html', questions=questions)
+
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    # Replace with the correct directory where your file is located
+    directory = os.path.join(app.root_path, 'static')
+    return send_from_directory(directory, filename, as_attachment=True)
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)
