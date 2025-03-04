@@ -42,7 +42,7 @@ def survey():
             'size': request.form['Preferred size大小'],
             'people': request.form['How many people (so we can recommend combo)人数'],
             'wait': request.form['How long you can wait (take into consider both product making and peak hour)等待时长'],
-            'new'
+            'newcustomer': request.form['Is this your first time trying a Meet Fresh product(check first time trying)是否是新顾客']
         }
         df = pd.DataFrame([responses])
         temp_choice = df['temp'][0]
