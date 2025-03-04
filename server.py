@@ -10,7 +10,9 @@ questions = {
         "Cold or Hot冷热":["Cold","Hot"],
         "Preferred size大小":['M','L'],
         "How many people (so we can recommend combo)人数":"number",
-        "How long you can wait (take into consider both product making and peak hour)等待时长":"number"}
+        "How long you can wait (take into consider both product making and peak hour)等待时长":"number",
+        "Is this your first time trying a Meet Fresh product(check first time trying)是否是新顾客":['Yes','No']
+        }
 results_data = {
     "Icy Taro Ball Signature": {"image": "static/icy-taro-ball-Signature.png", "link": "https://www.meetfresh.us/icy-taro-ball-signature/"},
     "Icy Grass Jelly Signature": {"image": "static/Signature-Icy-Grass-Jelly.png", "link": "https://www.meetfresh.us/icy-grass-jelly-signature/"},
@@ -21,7 +23,7 @@ results_data = {
 }
 
 def save_response(responses):
-    df = pd.DataFrame([responses], columns=['ingred','sweet','temp','size','people','wait'])
+    df = pd.DataFrame([responses], columns=['ingred','sweet','temp','size','people','wait','newcustomer'])
     try:
         existing_df = pd.read_csv("survey_results.csv")
         df = pd.concat([existing_df, df], ignore_index=True)
@@ -39,7 +41,8 @@ def survey():
             'temp': request.form['Cold or Hot冷热'],
             'size': request.form['Preferred size大小'],
             'people': request.form['How many people (so we can recommend combo)人数'],
-            'wait': request.form['How long you can wait (take into consider both product making and peak hour)等待时长']
+            'wait': request.form['How long you can wait (take into consider both product making and peak hour)等待时长'],
+            'new'
         }
         df = pd.DataFrame([responses])
         temp_choice = df['temp'][0]
