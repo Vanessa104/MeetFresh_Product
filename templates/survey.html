@@ -9,8 +9,13 @@
     <h1>Survey Form</h1>
     <form method="POST">
         {% for question, options in questions.items() %}
-            <label>{{ question }}</label><br>
-            {% if options == "text" %}
+        <label>{{ question }}</label><br>
+
+        {% if question == "What ingredients you prefer (e.g. grass jelly, mini taro…)主料" %}
+            {% for option in options %}
+                <input type="checkbox" name="{{ question }}" value="{{ option }}"> {{ option }}<br>
+            {% endfor %}
+            {% elif options == "text" %}
                 <input type="text" name="{{ question }}" required><br><br>
             {% elif options == "number" %}
                 <input type="number" name="{{ question }}" required><br><br>
