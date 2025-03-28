@@ -77,6 +77,9 @@ if __name__ == "__main__":
 
 
 
+
+
+# I will change the code according to the finalized similarity scores once they are completed （Roman）
 import csv
 import pandas as pd
 import numpy as np
