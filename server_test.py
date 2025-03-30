@@ -77,6 +77,10 @@ if __name__ == "__main__":
 
 
 
+
+
+# PEG 2.0 (Process & Export to Google Sheet)
+
 import csv
 import pandas as pd
 import numpy as np
@@ -85,48 +89,25 @@ import seaborn as sns
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.model_selection import train_test_split
 
-#read menu_items.csv
-df = pd.read_csv('/content/sample_data/menu_items v1 - menu_items_v2.csv') # will be replaced by the new menu dataset
-print(df.head())
+#Read menu data
 
-# If Temp contains'Icy and Hot' Then break it into two rows 'Icy' and 'Hot' for each Name and If Size contains'M and L' Then break it into two rows 'M' and 'L' for each Name
-
-
-
-# Create a list to store the new rows
-new_rows = []
-
-for index, row in df.iterrows():
-    temp_values = row['Temp'].split(' and ') if ' and ' in str(row['Temp']) else [row['Temp']]
-    size_values = row['Size'].split(' and ') if ' and ' in str(row['Size']) else [row['Size']]
-
-    for temp in temp_values:
-        for size in size_values:
-            new_row = row.copy()
-            new_row['Temp'] = temp
-            new_row['Size'] = size
-            new_rows.append(new_row)
-
-# Create a new DataFrame from the list of new rows
-new_df = pd.DataFrame(new_rows).reset_index(drop=True)
-
-# If Name contains 'Icy', 'Cold' or 'Hot' then use the Name, else add Temp with Name as a new name
-new_df['Name']=np.where(new_df['Name'].str.contains('Icy|Cold|Hot'), new_df['Name'] + ' ' + new_df['Size'], new_df['Temp'] + ' ' + new_df['Name'] + ' ' + new_df['Size'])
-
-df = new_df
+# read csv file from google sheet using published url
+csv_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
+df = pd.read_csv(csv_url)
+#print(df.head())
 
 # write a code to use sklearn binarizer to convert all words in 'Ingredients' columns to binary values
 # and drop 'Link','Image','Calories' columns
 mlb = MultiLabelBinarizer()
-df1 = df.drop(['Link','Image','Calories','Size'], axis=1)
+df1 = df.drop(['Category','Calories','Size','Link','Image'], axis=1)
 # Convert 'Sweetness' column to numerical values
-sweetness_mapping = {'Low': 1, 'Medium': 2, 'High': 3}
+sweetness_mapping = {'Low': 1, 'Med': 2, 'High': 3}
 df1['Sweetness'] = df1['Sweetness'].map(sweetness_mapping)
 # Convert 'PrepTime' column to numerical values
-df1['PrepTime'] = df1['PrepTime'].str.extract('(\d+)').astype(float)
+df1['Preparation_Time'] = df1['Preparation_Time'].str.extract('(\d+)').astype(float)
 # Convert 'Temp' to numerical values
 temp_mapping = {'Icy': 1, 'Hot': 2}
-df1['Temp'] = df1['Temp'].map(temp_mapping)
+df1['Temperature'] = df1['Temperature'].map(temp_mapping)
 # Convert 'Size' to numerical values
 #size_mapping = {'One Size': 1, 'M': 2, 'L': 3}
 #df1['Size'] = df1['Size'].map(size_mapping)
@@ -134,26 +115,28 @@ df1['Temp'] = df1['Temp'].map(temp_mapping)
 # # write a code to do one hot encoding for 'Sweetness','Temp','size' columns together with above
 # df2 = pd.get_dummies(df1, columns=['Sweetness','Temp','Size'])
 # print(df2.head())
-
+df1['Ingredients'] = df1['Ingredients'].fillna('')
 ingredient_encoded = pd.DataFrame(mlb.fit_transform(df1['Ingredients'].str.split(',')),
                                   columns=mlb.classes_,
                                   index=df1.index)
 
 # Merge one-hot encoded ingredient columns back
 df1 = df1.join(ingredient_encoded).drop(columns=['Ingredients'])
-df1= df1.drop(columns=[' Boba',' Grass Jelly',' Melon Jelly', ' Mini Q',' Red Beans', ' Rice Balls', ' Strawberry', ' Taro Paste',' Taro'])
-df1
+df1= df1.drop(columns=[' Boba',' Grass Jelly',' Melon Jelly', ' Mini Q',' Red Beans', ' Rice Balls', ' Strawberry', ' Taro Paste',' Taro',' Taro Balls'])
+#df1
 
 # replace df1['name'] with df1['name'] + ' ' + df1['nameCH']
 df1['Name'] = df1['Name'] + ' ' + df1['NameCH']
 # drop df1['nameCH']
 df1= df1.drop(['NameCH'], axis=1)
-df1
+#df1
+
+# Read Survey responses (test using random df, need to be replaced with real survey respoonses)
 
 # generate a mock dataframe with same columns as df1, but replace first columns with random letters
 df_mock = df1.copy()
 df_mock['Name'] = [chr(np.random.randint(65, 91)) for i in range(len(df_mock))]
-df_mock
+#df_mock
 
 # randomly select 5 rows from df_mock
 
@@ -161,7 +144,7 @@ df_mock
 sampled_mock = df_mock.sample(n=5)
 
 # Display the sampled DataFrame
-sampled_mock
+#sampled_mock
 
 # Remove non-numeric columns for cosine similarity
 product_features = df1.drop(columns=['Name'])
@@ -203,13 +186,7 @@ for i, customer_products in enumerate(top_5_products):
 # change the print result as df with column 'Recommendation' with index from sampled_mock
 df_result = pd.DataFrame({'Recommendation': top_5_products})
 df_result.index = sampled_features.index
-
-
-
-# save the result as 'recommendation' and merge the 'recommendation' with the first record in df_mock
-
-
-#add logic append new record
+#df_result
 
 # prompt: save top 5 result as 'recommendation' and merge the 'recommendation' with the first record in df_mock
 
@@ -221,8 +198,12 @@ df_result.index = sampled_features.index
 merged_df = pd.concat([sampled_features, df_result], axis=1)
 
 
+#merged_df
 
-pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client pandas
+
+#Export the merged response to google sheet
+
+pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
 # Append new records
 import os
