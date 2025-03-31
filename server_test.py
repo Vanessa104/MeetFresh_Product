@@ -89,12 +89,12 @@ import seaborn as sns
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.model_selection import train_test_split
 
-#Read menu data
+pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
 
 # read csv file from google sheet using published url
 csv_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
 df = pd.read_csv(csv_url)
-#print(df.head())
 
 # write a code to use sklearn binarizer to convert all words in 'Ingredients' columns to binary values
 # and drop 'Link','Image','Calories' columns
@@ -105,6 +105,8 @@ sweetness_mapping = {'Low': 1, 'Med': 2, 'High': 3}
 df1['Sweetness'] = df1['Sweetness'].map(sweetness_mapping)
 # Convert 'PrepTime' column to numerical values
 df1['Preparation_Time'] = df1['Preparation_Time'].str.extract('(\d+)').astype(float)
+#if df1[preparation_time] <5 then 4, else if >=5 then 5 as new df1[preparation_time]
+df1['Preparation_Time'] = df1['Preparation_Time'].apply(lambda x: 4 if x < 5 else 5)
 # Convert 'Temp' to numerical values
 temp_mapping = {'Icy': 1, 'Hot': 2}
 df1['Temperature'] = df1['Temperature'].map(temp_mapping)
@@ -122,90 +124,132 @@ ingredient_encoded = pd.DataFrame(mlb.fit_transform(df1['Ingredients'].str.split
 
 # Merge one-hot encoded ingredient columns back
 df1 = df1.join(ingredient_encoded).drop(columns=['Ingredients'])
-df1= df1.drop(columns=[' Boba',' Grass Jelly',' Melon Jelly', ' Mini Q',' Red Beans', ' Rice Balls', ' Strawberry', ' Taro Paste',' Taro',' Taro Balls'])
-#df1
+#df1= df1.drop(columns=[' Boba',' Grass Jelly',' Melon Jelly', ' Mini Q',' Red Beans', ' Rice Balls', ' Strawberry', ' Taro Paste',' Taro','Taro Ball',' Taro Balls',' ', ' Sago'])
+df1.rename(columns = {'Sago' : 'Coco Sago'}, inplace = True)
+df1.drop(columns = [''], inplace = True)
 
-# replace df1['name'] with df1['name'] + ' ' + df1['nameCH']
-df1['Name'] = df1['Name'] + ' ' + df1['NameCH']
-# drop df1['nameCH']
-df1= df1.drop(['NameCH'], axis=1)
-#df1
+# For later comparison between product ingred and survey ingred and filter=creation
+df1_ingred = df1.copy(deep = True)
+df1_ingred = df1.drop(columns = ['Name','NameCH','Sweetness','Temperature','Preparation_Time'])
 
-# Read Survey responses (test using random df, need to be replaced with real survey respoonses)
+# Read survey response
+survey_response = pd.read_csv('/content/sample_data/survey_results.csv') # add survey response from customers 
+#survey_response = survey_response.iloc[4:5]
+survey_response.rename(columns = {'ingred':'Ingredients', 'sweet' : 'Sweetness', 'temp' : 'Temperature', 'size' : 'Size', 'people' : 'People', 'wait' : 'Preparation_Time', 'newcustomer' : 'New_Customer'}, inplace = True)
+survey_matrix = survey_response.copy(deep = True)
 
-# generate a mock dataframe with same columns as df1, but replace first columns with random letters
-df_mock = df1.copy()
-df_mock['Name'] = [chr(np.random.randint(65, 91)) for i in range(len(df_mock))]
-#df_mock
+survey_matrix.drop(columns=['Size','People','New_Customer'], inplace=True)
+survey_matrix['Sweetness']= survey_matrix['Sweetness'].map({'Low': 1, 'Medium': 2, 'High': 3})
+survey_matrix['Temperature']= survey_matrix['Temperature'].map({'Cold': 1, 'Hot': 2})
+survey_matrix['Preparation_Time']= survey_matrix['Preparation_Time'].map({'1 - 3 min': 4, '4 - 6 min': 5, 'Less than 5 min': 4, 'Greater than 5 min': 5})
+# Convert the Ingredients column into list
+survey_matrix['Ingredients'] = survey_matrix['Ingredients'].apply(lambda x: x.split(','))
 
-# randomly select 5 rows from df_mock
 
-# Sample 5 random rows from df_mock
-sampled_mock = df_mock.sample(n=5)
+# Create new columns (one hot encoded) based on df1's columns
+survey_matrix_new = survey_matrix.copy(deep = True)
+for col in df1_ingred.columns:
+    survey_matrix_new[col] = survey_matrix_new["Ingredients"].apply(lambda values: 1 if col in values else 0)
 
-# Display the sampled DataFrame
-#sampled_mock
+#survey_input = survey_matrix_new.iloc[:1]
+#survey_input = survey_matrix.iloc[47:48]
+#survey_input = survey_matrix_new.iloc[49:50]
+#survey_input = survey_matrix.sample(n=1)
+survey_input = survey_matrix_new
 
-# Remove non-numeric columns for cosine similarity
-product_features = df1.drop(columns=['Name'])
-sampled_features = sampled_mock.drop(columns=['Name'])
-#customer_features = df_mock.drop(columns=['Name'])
-sampled_features = sampled_features.iloc[[0]]
+#List columns by ingredients
+#survey_ingred = survey_matrix.iloc[49:50]
+survey_ingred = survey_matrix
 
-# calculate the similarity between product_features and customer_features and provide a list of top 5 Name with the highest similarity score for each row of customer_features
+#flatten list
+survey_ingred = survey_ingred.explode('Ingredients')
+for value in survey_ingred['Ingredients']:
+    survey_ingred[value] = 1
+
+
+# Remove non-numeric columns for cosine similarity and filter cold/hot products
+product_features = df1[df1['Temperature'].isin(survey_input['Temperature'])].drop(columns=['Name','NameCH'])
+# Find the common columns between df1 and survey_input
+common_columns = df1.iloc[:,4:].columns.intersection(survey_ingred.iloc[:,4:].columns)
+
+# Filter product_features where at least one value in common columns exists in df2
+product_features = product_features[product_features[common_columns].isin(survey_ingred.to_dict('list')).any(axis=1)]
+
+survey_input_features = survey_input.drop(columns=['Ingredients'])
+
+# similarity score
 
 from sklearn.metrics.pairwise import cosine_similarity
-
-# Calculate cosine similarity between product and customer features
-similarity_matrix_sampled = cosine_similarity(product_features, sampled_features)
-
+similarity_matrix_survey = cosine_similarity(product_features, survey_input_features)
 # Get top 5 products for each customer
 top_5_products = []
-for i in range(sampled_features.shape[0]):
-    # Get similarity scores for the current customer
-    customer_similarities = similarity_matrix_sampled [:, i]
+#get index of similarity_matrics_survey
+similarity_df = pd.DataFrame(
+    similarity_matrix_survey,  # The similarity matrix
+    index=product_features.index,  # Use df1's index (product features index)
+    columns=survey_input_features.index  # Use survey_input_features index (customer index)
+)
 
-    # Get indices of top 5 most similar products
-    top_5_indices = np.argsort(customer_similarities)[-5:][::-1]  # Get indices of top 5
+# Get indices of top 5 most similar products with the highest score for the customer
 
-    # Get names of top 5 products
-    # Concat Name with Size as Name in df1
-    top_5_names = df1.iloc[top_5_indices]['Name'].tolist()
+similarity_df = similarity_df.sort_values(by=similarity_df.columns[0], ascending=False)
 
-    top_5_products.append(top_5_names)
+similarity_df = similarity_df[:5]
 
-# add similarity score for each name in the result
-for i, customer_products in enumerate(top_5_products):
-    for j, product_name in enumerate(customer_products):
-        similarity_score = similarity_matrix_sampled[df1[df1['Name'] == product_name].index[0], i]
-        customer_products[j] = f"{product_name} ({similarity_score:.2f})"
-# print the results with similarity score
-for i, customer_products in enumerate(top_5_products):
-    print(f"Top 5 products for Customer {sampled_features.index[i]}: {customer_products}")
+#similarity_df = similarity_df.rename(columns={similarity_df.columns[0]: "Similarity Score"})
 
-# change the print result as df with column 'Recommendation' with index from sampled_mock
-df_result = pd.DataFrame({'Recommendation': top_5_products})
-df_result.index = sampled_features.index
-#df_result
+# prompt: join similarity_df with df on index 
 
-# prompt: save top 5 result as 'recommendation' and merge the 'recommendation' with the first record in df_mock
-
-# Save the top 5 products as 'recommendation'
-#recommendation = pd.DataFrame({'recommendation': [top_5_products]})
+recommendation_df = df.merge(similarity_df, left_index=True, right_index=True, how='inner')
+recommendation_df = recommendation_df.sort_values(by=similarity_df.columns[0], ascending=False)
+recommendation_df_new = recommendation_df.copy(deep=True)
+recommendation_df_new.rename(columns = {recommendation_df_new.columns[-1]: "Similarity Score"}, inplace = True)
+recommendation_df_new # Please use this dataframe to show users results
 
 
-# Merge 'recommendation' with the first record in df_mock
-merged_df = pd.concat([sampled_features, df_result], axis=1)
+
+# Get the last column name dynamically
+last_column = recommendation_df.columns[-1]
+
+# round 2 decimals for last column in 
+recommendation_df[last_column] = recommendation_df[last_column].round(2)
+# Create a dictionary where:
+# - Key: Last column name
+# - Value: List of tuples (Name, Last Column Value)
+
+recommendation_dict = {
+    last_column: list(zip(recommendation_df["Name"], recommendation_df[last_column]))
+}
+
+# Convert to DataFrame format
+df_list = []
+for key, product_list in recommendation_dict.items():
+    row = {"CustomerID": key}  # Use key as identifier
+    for i, (product, score) in enumerate(product_list, start=1):
+        row[f"Top{i} Product"] = product
+        row[f"Similarity Score Top{i}"] = score
+    df_list.append(row)
+
+# Create DataFrame
+df_result = pd.DataFrame(df_list)
+
+# Set the key as the index
+df_result.set_index("CustomerID", inplace=True)
+
+#survey_other_input = survey_response[['People','New_Customer']].iloc[:1]
+#survey_other_input = survey_response[['People','New_Customer']].iloc[10:11]
+#survey_other_input = survey_response[['People','New_Customer']].iloc[49:50]
+survey_other_input = survey_response[['People','New_Customer']]
+merged_df_response = pd.concat([survey_input, df_result, survey_other_input], axis=1)
+# add Dalas time as created time
+from datetime import datetime
+from zoneinfo import ZoneInfo
+dallas_time = datetime.now(ZoneInfo("America/Chicago"))
+merged_df_response['created_time'] = dallas_time
+#merged_df_response['created_time'] = pd.to_datetime('now')
 
 
-#merged_df
-
-
-#Export the merged response to google sheet
-
-pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
-
-# Append new records
+# Append new records to Googlesheet
 import os
 import json
 from google.oauth2 import service_account
@@ -287,19 +331,22 @@ def append_survey_response(response_data):
 
 
 # Test the whole process (clear and export)
-
+merged_df = merged_df_response.copy(deep=True)
 export_headers_to_sheet(merged_df)
 def test_export():
-
     # Convert 'Recommendation' column to string (if it exists)
-    if 'Recommendation' in merged_df.columns:
-        merged_df['Recommendation'] = merged_df['Recommendation'].astype(str)
+    # if 'Recommendation' in merged_df.columns:
+    #     merged_df['Recommendation'] = merged_df['Recommendation'].astype(str)
+    # Convert 'Ingredients' column to string (if it exists)
+    if 'Ingredients' in merged_df.columns:
+        merged_df['Ingredients'] = merged_df['Ingredients'].astype(str)
+
+        merged_df['created_time'] = merged_df['created_time'].astype(str)
 
     # Loop through each row in the DataFrame and append to Google Sheets
     for index, row in merged_df.iterrows():
         response_data = row.tolist()  # Convert the row to a list
         append_survey_response(response_data)  # Append each row to Google Sheets
-
-
 # Run the test export
 test_export()
+
