@@ -1,7 +1,6 @@
+flask
 pandas
 numpy
-flask
-csv
-gunicorn
-requests
-matplotlib.pyplot
+matplotlib
+seaborn
+scikit-learn
