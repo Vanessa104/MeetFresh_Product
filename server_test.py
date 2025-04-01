@@ -203,55 +203,62 @@ def survey():
             recommendation_df_new.rename(columns={recommendation_df_new.columns[-1]: "Similarity Score"}, inplace=True)
 
             # Convert to dictionary for the output
+            recommendation_df_new = recommendation_df_new.drop_duplicates(subset=['Name'])
             results_data = recommendation_df_new.set_index('Name').to_dict(orient='index')
-
             # Show results
             print(results_data)
             # Get the last column name dynamically
             last_column = recommendation_df.columns[-1]
-            if last_column in recommendation_df.columns:
-                recommendation_df[last_column] = recommendation_df[last_column].round(2)
 
-            # Create dictionary with recommendations
+            # round 2 decimals for last column in 
+            recommendation_df[last_column] = recommendation_df[last_column].round(2)
+            # Create a dictionary where:
+            # - Key: Last column name
+            # - Value: List of tuples (Name, Last Column Value)
+
             recommendation_dict = {
-                "Recommendations": list(zip(recommendation_df["Name"], recommendation_df[last_column]))
+                last_column: list(zip(recommendation_df["Name"], recommendation_df[last_column]))
             }
 
-            # Convert to DataFrame
+            # Convert to DataFrame format
             df_list = []
             for key, product_list in recommendation_dict.items():
-                row = {"CustomerID": key}
+                row = {"CustomerID": key}  # Use key as identifier
                 for i, (product, score) in enumerate(product_list, start=1):
                     row[f"Top{i} Product"] = product
                     row[f"Similarity Score Top{i}"] = score
+
+                # Generate concatenated recommendation string dynamically
+                recommendations = [
+                    f"{row.get(f'Top{i} Product', 'NA')},{row.get(f'Similarity Score Top{i}', 'NA')}"
+                    for i in range(1, 6)
+                ]
+                row["Recommendation"] = ",".join(recommendations)
+
                 df_list.append(row)
 
-            df_result = pd.DataFrame(df_list).fillna('')  # Handle missing values
+            # Create DataFrame
+            df_result = pd.DataFrame.from_records(df_list)
 
-            # Create recommendation string dynamically
-            df_result["Recommendation"] = df_result.apply(
-                lambda row: ','.join(
-                    f"{row[f'Top{i} Product']},{row[f'Similarity Score Top{i}']}" 
-                    for i in range(1, 6) if f"Top{i} Product" in df_result.columns and pd.notna(row[f'Top{i} Product'])
-                ),
-                axis=1
-            )
-
-            # Set the index and drop unused columns
+            # Set CustomerID as index
             df_result.set_index("CustomerID", inplace=True)
+
+        # Drop Top Product and Score columns efficiently
             df_result.drop(columns=[col for col in df_result.columns if "Top" in col or "Similarity Score" in col], inplace=True)
 
-            # Merge survey response data
-            survey_other_input = survey_response[['People', 'New_Customer']]
-            merged_df_response = pd.concat([survey_input.reset_index(), df_result.reset_index(), survey_other_input.reset_index()], axis=1)
 
-            # Add Dallas time as created timestamp
+            #survey_other_input = survey_response[['People','New_Customer']].iloc[:1]
+            #survey_other_input = survey_response[['People','New_Customer']].iloc[10:11]
+            #survey_other_input = survey_response[['People','New_Customer']].iloc[49:50]
+            survey_other_input = survey_response[['People','New_Customer']]
+            merged_df_response = pd.concat([survey_input, df_result, survey_other_input], axis=1)
+             # add Dalas time as created time
             from datetime import datetime
-            import pytz
+            from zoneinfo import ZoneInfo
+            dallas_time = datetime.now(ZoneInfo("America/Chicago"))
+            merged_df_response['created_time'] = dallas_time
+                    #merged_df_response['created_time'] = pd.to_datetime('now')
 
-            dallas_tz = pytz.timezone("America/Chicago")
-            dallas_time = datetime.now(dallas_tz)
-            merged_df_response['created_time'] = dallas_time.strftime('%Y-%m-%d %H:%M:%S')
         else:
             print("Similarity matrix could not be calculated. No recommendations to display.")
             merged_df_response = pd.DataFrame()
