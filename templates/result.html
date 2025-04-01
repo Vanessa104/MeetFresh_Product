@@ -8,13 +8,21 @@
 <body>
     <h1>Survey Result</h1>
     <p>Thank you for completing the survey! Based on your response, check out the links below:</p>
+    
+    <!-- Display responses -->
     <label>{{ responses }}</label><br>
-    {% for item, details in results.items() %}
-        <h3>{{ item}}</h3>
-        <h3>{{ details['NameCH']}}</h3>
-        <img src="{{ details['Image'] }}" alt="{{ item }}" width="200">
-        <a href="{{ details['Link'] }}" target="_blank">More Info</a>
-        <br><br>
-    {% endfor %}
+
+    <!-- Check if results exist and display them -->
+    {% if results %}
+        {% for item, details in results.items() %}
+            <h3>{{ item }}</h3>
+            <h3>{{ details['NameCH'] }}</h3>
+            <img src="{{ details['Image'] }}" alt="{{ item }}" width="200">
+            <a href="{{ details['Link'] }}" target="_blank">More Info</a>
+            <br><br>
+        {% endfor %}
+    {% else %}
+        <p>No recommendations available based on your responses.</p>
+    {% endif %}
 </body>
 </html>
