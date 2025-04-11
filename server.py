@@ -12,66 +12,119 @@ from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics.pairwise import cosine_similarity
 
+# ##----Hard-coding the questions and save as constants----##
+# ### As reference, colnames later used for user inputs are:
+# ### ['ingred','sweet','temp','size','people','wait','newcustomer'] ###
+QUESTIONS_ENG = {'ingred': 'What ingredients do you prefer (e.g., grass jelly, taro balls…)?',
+                 'sweet': 'Which level of sweetness do you prefer?',
+                 'temp': 'Do you prefer hot or cold?',
+                 'size': 'Which size do you prefer？',
+                 'people': 'How many people are there in your party?',
+                 'wait': 'How long can you wait?',
+                 'newcustomer': 'Is this your first time trying a Meet Fresh product?'}
+
+INGREDIENTS_ENG = ['Almond Flakes', 'Almond Pudding', 'Almond Soup', 'Black Sugar Boba',
+                   'Boba', 'Caramel Pudding', 'Caramel Sauce', 'Chocolate Chip Egg Waffle',
+                   'Chocolate Chips', 'Chocolate Egg Waffle', 'Chocolate Syrup',
+                   'Chocolate Wafer Rolls', 'Coconut Flakes', 'Coconut Milk',
+                   'Coconut Soup', 'Creamer', 'Crystal Mochi', 'Egg Waffle', 'Fluffy',
+                   'Grass Jelly', 'Grass Jelly Shaved Ice', 'Grass Jelly Soup',
+                   'Hot Red Beans Soup', 'Ice Cream', 'Mango', 'Matcha Egg Waffle',
+                   'Matcha Red Beans Egg Waffle', 'Melon Jelly', 'Milk', 'Milk Tea Sauce',
+                   'Mini Q', 'Mixed Nuts', 'Mung Bean Cakes', 'Peanuts', 'Potaro Ball',
+                   'Purple Rice', 'Purple Rice Soup', 'Q Mochi', 'Red Beans',
+                   'Red Beans Soup', 'Rice Balls', 'Coco Sago', 'Sesame Rice Balls',
+                   'Shaved Ice', 'Strawberry', 'Taro', 'Taro Balls', 'Taro Paste',
+                   'Taro Paste Sauce', 'Tofu Pudding', 'Ube Milk Shaved Ice', 'Ube Paste']
+OPTIONS_ENG = {'ingred': INGREDIENTS_ENG,
+               'sweet': ['High', 'Medium', 'Low'],
+               'temp': ["Cold", "Hot"],
+               'size': ['M', 'L'],
+               'people': ["Single", "2 -- 3", "4 -- 5", "6 or more"],
+               'wait': ["Less than 5 min", "More than 5 min"],
+               'newcustomer': ['Yes','No']}
+
+QUESTIONS_CHN = {'ingred': '请选择您想加的原料',
+                 'sweet': '请选择甜度',
+                 'temp': '请选择甜品温度',
+                 'size': '请选择甜品分量',
+                 'people': '请选择就餐人数',
+                 'wait': '请选择等待时长',
+                 'newcustomer': ' 请问您是第一次来鲜芋仙吗？'}
+INGREDIENTS_CHN = ['杏仁碎', '杏仁布丁', '杏仁粥', '黑糖珍珠',
+                   '珍珠', '焦糖布丁', '焦糖浆', '巧克力碎鸡蛋仔',
+                   '巧克力碎', '巧克力蛋仔', '巧克力糖浆',
+                   '巧克力华夫卷', 'Coconut Flakes', '椰奶',
+                   'Coconut Soup', 'Creamer', 'Crystal Mochi', 'Egg Waffle', 'Fluffy',
+                   '仙草', '仙草冰沙', 'Grass Jelly Soup',
+                   '热红豆汤', '冰淇淋', '芒果', 'Matcha Egg Waffle',
+                   'Matcha Red Beans Egg Waffle', 'Melon Jelly', '牛奶', '奶茶糖浆',
+                   'Mini Q', 'Mixed Nuts', '绿豆糕', '花生', '芋薯圆',
+                   '紫米', '紫米粥', 'Q Mochi', '红豆',
+                   '红豆汤', '汤圆', '椰汁西米', '芝麻汤圆',
+                   '冰沙', '草莓', '芋头', '芋圆', '芋泥',
+                   'Taro Paste Sauce', '豆花', '紫薯牛奶冰', '紫薯泥']
+OPTIONS_CHN = {'ingred': INGREDIENTS_CHN,
+               'sweet': ['高糖', '中糖', '低糖'],
+               'temp': ["冷", "热"],
+               'size': ['中份', '大份'],
+               'people': ["单人", "2 -- 3", "4 -- 5", "6人或以上"],
+               'wait': ["少于5分钟", "超过5分钟"],
+               'newcustomer': ['是', '否']}
+# save the mapping of options to numbers here (for later use)
+NUMERIZED_OPTIONS = {'sweet': [3, 2, 1],
+                     'temp': [1, 2],
+                     # 'size': [2, 3],
+                     # 'people': ["单人", "2 -- 3", "4 -- 5", "6人或以上"],
+                     'wait': [4, 5],
+                     'newcustomer': [1, 0]}
+
+# #----End of block----##
+# Make a concatenated bilingual version for temporary use:
+QUESTIONS_BI = {key: f'{QUESTIONS_ENG[key]}\n{QUESTIONS_CHN[key]}'
+                for key in QUESTIONS_ENG}
+OPTIONS_BI = {key: f'{OPTIONS_ENG[key]} {OPTIONS_CHN[key]}'
+              for key in OPTIONS_ENG}
+# ##----Actual End of block----###
 
 app = Flask(__name__)
 
-questions = {
-        "Is this your first time trying a Meet Fresh product(check first time trying)是否是新顾客":['Yes','No'],
-        "What ingredients you prefer (e.g. grass jelly, mini taro…)主料": [ 'Almond Flakes', 'Almond Pudding', 'Almond Soup', 'Black Sugar Boba',
-       'Boba', 'Caramel Pudding', 'Caramel Sauce', 'Chocolate Chip Egg Waffle',
-       'Chocolate Chips', 'Chocolate Egg Waffle', 'Chocolate Syrup',
-       'Chocolate Wafer Rolls', 'Coconut Flakes', 'Coconut Milk',
-       'Coconut Soup', 'Creamer', 'Crystal Mochi', 'Egg Waffle', 'Fluffy',
-       'Grass Jelly', 'Grass Jelly Shaved Ice', 'Grass Jelly Soup',
-       'Hot Red Beans Soup', 'Ice Cream', 'Mango', 'Matcha Egg Waffle',
-       'Matcha Red Beans Egg Waffle', 'Melon Jelly', 'Milk', 'Milk Tea Sauce',
-       'Mini Q', 'Mixed Nuts', 'Mung Bean Cakes', 'Peanuts', 'Potato Ball',
-       'Purple Rice', 'Purple Rice Soup', 'Q Mochi', 'Red Beans',
-       'Red Beans Soup', 'Rice Balls', 'Coco Sago', 'Sesame Rice Balls',
-       'Shaved Ice', 'Strawberry', 'Taro', 'Taro Balls', 'Taro Paste',
-       'Taro Paste Sauce', 'Tofu Pudding', 'Ube Milk Shaved Ice', 'Ube Paste'],
-        "What taste you prefer (e.g. how much sweetness)甜度":['High','Low','Medium'],
-        "Cold or Hot冷热":["Cold","Hot"],
-        "Preferred size大小":['M','L'],
-        "How many people (so we can recommend combo)人数":["Single","2 - 3","4 - 5","6 or above"],
-        "How long you can wait (take into consider both product making and peak hour)等待时长":["Less than 5 min","Greater than 5 min"]
-        }
-results_data = {
-    "Icy Taro Ball Signature": {"image": "static/icy-taro-ball-Signature.png", "link": "https://www.meetfresh.us/icy-taro-ball-signature/"},
-    "Icy Grass Jelly Signature": {"image": "static/Signature-Icy-Grass-Jelly.png", "link": "https://www.meetfresh.us/icy-grass-jelly-signature/"},
-    "Hot Red Bean Soup Signature": {"image": "static/Hot-Red-Bean-Soup-Signature.png", "link": "https://www.meetfresh.us/hot-red-bean-soup-signature/"},
-    "Hot Grass Jelly Soup Signature": {"image": "static/Hot-Grass-Jelly-Signature.png", "link": "https://www.meetfresh.us/hot-grass-jelly-soup-signature/"},
-    "Hot Almond Soup Signature": {"image": "static/Hot-Almond-Soup-Signature.png", "link": "https://www.meetfresh.us/hot-almond-soup-signature/"},
-}
-#data = pd.read_csv("menu_items.csv")
+# I'll use all English as an example for now.
+# ## To concatenate eng+chn, do
+# ### f'{QUESTIONS_ENG[key]}\n{QUESTIONS_CHN[key]}':
+#       [f'{OPTIONS_ENG[key][opt_idx]} {OPTIONS_CHN[key][opt_idx]}'
+#        for opt_idx in range(len(OPTIONS_ENG[key]))]
+questions = {QUESTIONS_BI[key]: OPTIONS_BI[key] for key in
+             ['newcustomer', 'ingred', 'sweet', 'temp', 'size', 'people', 'wait']}
 
 # read csv file from google sheet using published url
 csv_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
 df = pd.read_csv(csv_url)
 df['Image'] = "static/" + df['Image'].fillna("").apply(lambda x: x.split("/")[-1])
-#data = df
-#data['Image'] = "static/" + data['Image'].apply(lambda x: x.split("/")[-1])
-#results_data = data.set_index('Name').to_dict(orient='index')
-
-
+# data = df
+# data['Image'] = "static/" + data['Image'].apply(lambda x: x.split("/")[-1])
+# results_data = data.set_index('Name').to_dict(orient='index')
 
 # write a code to use sklearn binarizer to convert all words in 'Ingredients' columns to binary values
 # and drop 'Link','Image','Calories' columns
 mlb = MultiLabelBinarizer()
-df1 = df.drop(['Category','Calories','Size','Link','Image'], axis=1)
+df1 = df.drop(['Category', 'Calories', 'Size', 'Link', 'Image'], axis=1)
 # Convert 'Sweetness' column to numerical values
-sweetness_mapping = {'Low': 1, 'Med': 2, 'High': 3}
-df1['Sweetness'] = df1['Sweetness'].map(sweetness_mapping)
+df1['Sweetness'] = df1['Sweetness'].map({'Low': 1, 'Med': 2, 'High': 3})
+# {OPTIONS_ENG['sweet'][idx]: NUMERIZED_OPTIONS['sweet'][idx]
+#  for idx in range(len(OPTIONS_ENG['sweet']))})
+
 # Convert 'PrepTime' column to numerical values
 df1['Preparation_Time'] = df1['Preparation_Time'].str.extract('(\d+)').astype(float)
-#if df1[preparation_time] <5 then 4, else if >=5 then 5 as new df1[preparation_time]
+# if df1[preparation_time] <5 then 4, else if >=5 then 5 as new df1[preparation_time]
 df1['Preparation_Time'] = df1['Preparation_Time'].apply(lambda x: 4 if x < 5 else 5)
+
 # Convert 'Temp' to numerical values
 temp_mapping = {'Icy': 1, 'Hot': 2}
 df1['Temperature'] = df1['Temperature'].map(temp_mapping)
 # Convert 'Size' to numerical values
-#size_mapping = {'One Size': 1, 'M': 2, 'L': 3}
-#df1['Size'] = df1['Size'].map(size_mapping)
+# size_mapping = {'One Size': 1, 'M': 2, 'L': 3}
+# df1['Size'] = df1['Size'].map(size_mapping)
 
 # # write a code to do one hot encoding for 'Sweetness','Temp','size' columns together with above
 # df2 = pd.get_dummies(df1, columns=['Sweetness','Temp','Size'])
@@ -83,16 +136,18 @@ ingredient_encoded = pd.DataFrame(mlb.fit_transform(df1['Ingredients'].str.split
 
 # Merge one-hot encoded ingredient columns back
 df1 = df1.join(ingredient_encoded).drop(columns=['Ingredients'])
-#df1= df1.drop(columns=[' Boba',' Grass Jelly',' Melon Jelly', ' Mini Q',' Red Beans', ' Rice Balls', ' Strawberry', ' Taro Paste',' Taro','Taro Ball',' Taro Balls',' ', ' Sago'])
-df1.rename(columns = {'Sago' : 'Coco Sago'}, inplace = True)
-df1.drop(columns = [''], inplace = True)
+# df1= df1.drop(columns=[' Boba',' Grass Jelly',' Melon Jelly',
+# ' Mini Q',' Red Beans', ' Rice Balls', ' Strawberry', ' Taro Paste',
+# ' Taro','Taro Ball',' Taro Balls',' ', ' Sago'])
+df1.rename(columns = {'Sago': 'Coco Sago'}, inplace=True)
+df1.drop(columns=[''], inplace=True)
 
 # For later comparison between product ingred and survey ingred and filter=creation
-df1_ingred = df1.copy(deep = True)
-df1_ingred = df1.drop(columns = ['Name','NameCH','Sweetness','Temperature','Preparation_Time'])
+df1_ingred = df1.copy(deep=True).drop(columns=['Name', 'NameCH', 'Sweetness', 'Temperature', 'Preparation_Time'])
+
 
 def save_response(responses):
-    df = pd.DataFrame([responses], columns=['ingred','sweet','temp','size','people','wait','newcustomer'])
+    df = pd.DataFrame([responses], columns=['ingred', 'sweet', 'temp', 'size', 'people','wait', 'newcustomer'])
     try:
         existing_df = pd.read_csv("survey_results.csv")
         df = pd.concat([existing_df, df], ignore_index=True)
@@ -100,69 +155,74 @@ def save_response(responses):
         pass
     df.to_csv("survey_results.csv", index=False)
 
-    
+
 @app.route('/', methods=['GET', 'POST'])
 def survey():
     if request.method == 'POST':
-         # Handling multiple ingredients
-        ingred_list = request.form.getlist('What ingredients you prefer (e.g. grass jelly, mini taro…)主料')
+        # Handling multiple ingredients
+        ingred_list = request.form.getlist(QUESTIONS_BI['ingred'])
         ingred_str = ", ".join(ingred_list)  # Convert list to a comma-separated string
         responses = {
             'ingred': ingred_str,
-            'sweet': request.form['What taste you prefer (e.g. how much sweetness)甜度'],
-            'temp': request.form['Cold or Hot冷热'],
-            'size': request.form['Preferred size大小'],
-            'people': request.form['How many people (so we can recommend combo)人数'],
-            'wait': request.form['How long you can wait (take into consider both product making and peak hour)等待时长'],
-            'newcustomer': request.form['Is this your first time trying a Meet Fresh product(check first time trying)是否是新顾客']
+            'sweet': request.form[QUESTIONS_BI['sweet']],
+            'temp': request.form[QUESTIONS_BI['temp']],
+            'size': request.form[QUESTIONS_BI['size']],
+            'people': request.form[QUESTIONS_BI['people']],
+            'wait': request.form[QUESTIONS_BI['wait']],
+            'newcustomer': request.form[QUESTIONS_BI['newcustomer']]
         }
-        #save_response(responses)
-        #df = pd.DataFrame([responses])
-        #temp_choice =  responses['temp']
-        #ingred = set(ingred_list)
-        #sweet_choice = responses['sweet']
-        #waittime = responses['wait']
+
         import pandas as pd
         # Read survey response
-        survey_response = pd.DataFrame([responses], columns=['ingred','sweet','temp','size','people','wait','newcustomer'])
+        survey_response = pd.DataFrame([responses],
+                                       columns=['ingred', 'sweet', 'temp', 'size', 'people', 'wait', 'newcustomer'])
 
-        #survey_response = survey_response.iloc[4:5]
-        survey_response.rename(columns = {'ingred':'Ingredients', 'sweet' : 'Sweetness', 'temp' : 'Temperature', 'size' : 'Size', 'people' : 'People', 'wait' : 'Preparation_Time', 'newcustomer' : 'New_Customer'}, inplace = True)
-        survey_matrix = survey_response.copy(deep = True)
+        # survey_response = survey_response.iloc[4:5]
+        survey_response.rename(columns={'ingred':'Ingredients',
+                                        'sweet': 'Sweetness',
+                                        'temp': 'Temperature',
+                                        'size': 'Size',
+                                        'people': 'People',
+                                        'wait': 'Preparation_Time',
+                                        'newcustomer': 'New_Customer'},
+                               inplace=True)
+        survey_matrix = survey_response.copy(deep=True)
 
-        survey_matrix.drop(columns=['Size','People','New_Customer'], inplace=True)
-        survey_matrix['Sweetness']= survey_matrix['Sweetness'].map({'Low': 1, 'Medium': 2, 'High': 3})
-        survey_matrix['Temperature']= survey_matrix['Temperature'].map({'Cold': 1, 'Hot': 2})
-        survey_matrix['Preparation_Time']= survey_matrix['Preparation_Time'].map({'1 - 3 min': 4, '4 - 6 min': 5, 'Less than 5 min': 4, 'Greater than 5 min': 5})
+        survey_matrix.drop(columns=['Size', 'People', 'New_Customer'], inplace=True)
+        survey_matrix['Sweetness']= survey_matrix['Sweetness'].map(
+            {OPTIONS_BI['sweet'][idx]: NUMERIZED_OPTIONS['sweet'][idx]
+             for idx in range(len(OPTIONS_ENG['sweet']))})
+        survey_matrix['Temperature']= survey_matrix['Temperature'].map(
+            {OPTIONS_BI['temp'][idx]: NUMERIZED_OPTIONS['temp'][idx]
+             for idx in range(len(OPTIONS_ENG['temp']))})
+        survey_matrix['Preparation_Time']= survey_matrix['Preparation_Time'].map(
+            {OPTIONS_BI['wait'][idx]: NUMERIZED_OPTIONS['wait'][idx]
+             for idx in range(len(OPTIONS_ENG['wait']))})
         # Convert the Ingredients column into list
         survey_matrix['Ingredients'] = survey_matrix['Ingredients'].apply(lambda x: x.split(','))
-                
+
         # Create new columns (one hot encoded) based on df1's columns
-        survey_matrix_new = survey_matrix.copy(deep = True)
+        survey_matrix_new = survey_matrix.copy(deep=True)
         for col in df1_ingred.columns:
             survey_matrix_new[col] = survey_matrix_new["Ingredients"].apply(lambda values: 1 if col in values else 0)
 
-        #survey_input = survey_matrix_new.iloc[:1]
-        #survey_input = survey_matrix.iloc[47:48]
-        #survey_input = survey_matrix_new.iloc[49:50]
-        #survey_input = survey_matrix.sample(n=1)
         survey_input = survey_matrix_new
 
-        #List columns by ingredients
-        #survey_ingred = survey_matrix.iloc[49:50]
+        # List columns by ingredients
         survey_ingred = survey_matrix
 
-        #flatten list
+        # flatten list
         survey_ingred = survey_ingred.explode('Ingredients')
         for value in survey_ingred['Ingredients']:
             survey_ingred[value] = 1
         # Find common columns
-        product_features = df1[df1['Temperature'].isin(survey_input['Temperature'])].drop(columns=['Name','NameCH'])
+        product_features = df1[df1['Temperature'].isin(survey_input['Temperature'])].drop(columns=['Name', 'NameCH'])
         # Find the common columns between df1 and survey_input
-        common_columns = df1.iloc[:,4:].columns.intersection(survey_ingred.iloc[:,4:].columns)
+        common_columns = df1.iloc[:, 4:].columns.intersection(survey_ingred.iloc[:, 4:].columns)
 
         # Filter product_features where at least one value in common columns exists in df2
-        product_features = product_features[product_features[common_columns].isin(survey_ingred.to_dict('list')).any(axis=1)]
+        filtered_columns = product_features[common_columns].isin(survey_ingred.to_dict('list')).any(axis=1)
+        product_features = product_features[filtered_columns]
         # Filter survey input features (ensure numeric and without missing values)
         survey_input_features = survey_input.drop(columns=['Ingredients']).select_dtypes(include=[np.number]).dropna()
 
@@ -183,7 +243,7 @@ def survey():
             print(f"Error: {e}")
             similarity_matrix_survey = None
         if similarity_matrix_survey is not None:
-    # Convert the similarity matrix to a DataFrame
+            # Convert the similarity matrix to a DataFrame
             similarity_df = pd.DataFrame(
                 similarity_matrix_survey,
                 index=product_features.index,
@@ -245,26 +305,23 @@ def survey():
 
         # Drop Top Product and Score columns efficiently
             df_result.drop(columns=[col for col in df_result.columns if "Top" in col or "Similarity Score" in col], inplace=True)
-
-
-            #survey_other_input = survey_response[['People','New_Customer']].iloc[:1]
-            #survey_other_input = survey_response[['People','New_Customer']].iloc[10:11]
-            #survey_other_input = survey_response[['People','New_Customer']].iloc[49:50]
+            # survey_other_input = survey_response[['People','New_Customer']].iloc[:1]
+            # survey_other_input = survey_response[['People','New_Customer']].iloc[10:11]
+            # survey_other_input = survey_response[['People','New_Customer']].iloc[49:50]
             survey_other_input = survey_response[['People','New_Customer']]
             merged_df_response = pd.concat([survey_input, df_result, survey_other_input], axis=1)
-             # add Dalas time as created time
+            # add Dallas time as created time
             from datetime import datetime
             from zoneinfo import ZoneInfo
             dallas_time = datetime.now(ZoneInfo("America/Chicago"))
             merged_df_response['created_time'] = dallas_time
-                    #merged_df_response['created_time'] = pd.to_datetime('now')
+            # merged_df_response['created_time'] = pd.to_datetime('now')
 
         else:
             print("Similarity matrix could not be calculated. No recommendations to display.")
             merged_df_response = pd.DataFrame()
             results_data = {}
-        
-       
+
         # Append new records to Googlesheet
         import os
         import json
@@ -350,6 +407,7 @@ def survey():
         # Test the whole process (clear and export)
         merged_df = merged_df_response.copy(deep=True)
         export_headers_to_sheet(merged_df)
+
         def test_export():
             # Convert 'Recommendation' column to string (if it exists)
             # if 'Recommendation' in merged_df.columns:
@@ -373,13 +431,12 @@ def survey():
     return render_template('survey.html', questions=questions)
 
 
+# @app.route('/download/<filename>')
+# def download_file(filename):
+# Replace with the correct directory where your file is located
+#   directory = os.path.join(app.root_path, 'static')
+#  return send_from_directory(directory, filename, as_attachment=True)
 
-
-#@app.route('/download/<filename>')
-#def download_file(filename):
-    # Replace with the correct directory where your file is located
- #   directory = os.path.join(app.root_path, 'static')
-  #  return send_from_directory(directory, filename, as_attachment=True)
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)
