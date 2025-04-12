@@ -2,14 +2,9 @@
 # PEG 2.0 (Process & Export to Google Sheet)
 
 from flask import Flask, render_template, request
-from flask import send_from_directory
-import csv
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.model_selection import train_test_split
 from sklearn.metrics.pairwise import cosine_similarity
 
 # ##----Hard-coding the questions and save as constants----##
@@ -322,112 +317,27 @@ def survey():
             merged_df_response = pd.DataFrame()
             results_data = {}
 
-        # Append new records to Googlesheet
-        import os
-        import json
-        from google.oauth2 import service_account
-        from googleapiclient.discovery import build
-        import pandas as pd
-
-        # Embed the JSON key directly in your code as a string
-        json_key = '''
-        {
-        "type": "service_account",
-        "project_id": "meetfresh-data-migration",
-        "private_key_id": "1d1dbef38e7044f2280cbc2838a70351228a7f7c",
-        "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCp71HrAwmm+qAh\\nvA4AsRNM14Y2zCVE26AAdjw7YJfbYQ0z22eG90Sbu3hyqrAmH4LFNkLebs9s2D0l\\nraFcAS+LeJvaGTHOKwPWoTZ2Qgt/GQS16pQawNjEYS1X952moIuwGSvenc3fIdYm\\nw7Fn2pQyuRf8kBAKVkVC/+O9aadWm5z2Q01R+WNOCcb1JQUSbcfEfcBGfDV9UtLL\\npvobFnJTH4hQXNitoZHweaSu6ZMqnFeMrOvFkMfr63OiuQhIVJ35zZaK0BGqycU/\\nwflXmD6Yumj708hRFy1uZsrOZaWFs+C4MsRv8tb6DJw0Qx+XhS1l7HDHm+tQGZDH\\niosCfXm3AgMBAAECggEAGSt8W63QgS4AB98dx9ZygGAv3e/w2TkagtcAZt8Qvwqp\\n9PNbay82t0ZWOc20V4E1UlaOIvoQuRNyQyFrlAAM9cCAfRZcPSg74k9wjKWNpF6l\\nRviexTOpJ7UpDS186VBAQG4KBGglNRaC7KzxmutSJg0qU1tXNODAU4MpTUXX5kja\\ndBc9epBtHUAKZ4q7cqDLpugDZI/yVDBSJ+td1lGx/YzZbheRnxpzcAoyXzKSy+Yn\\n6CoT9oHCyp4YK/Qb7iazM2OYIY6olN+T+/By/MlBlYiA1Cxen/qSVRfDKuyzam/c\\naDYfL/zaSus50CcdOs+c3r+hhfsBqFeCe4cz7T/gaQKBgQDUJ+YItptL70YCmgXM\\nElT1bxczwWRe/2Ie5R8ZZvaKEAlAS4KojTR/qVDubpQ1qDxJIU1O5wzOTOcmfLwv\\nhkxjdjot9GaDzMbl+1sd2evPGuY1S4SNr4RhHy3ZYifk7sdFgMQGXUQgJyJWJrha\\nM59xBZWf0cvmKHE8OA0AnLGlowKBgQDNDbg9JgmuQc2qeAyakefCztRUpbUMa6xV\\n5tweXw7+g6AUTbhb/j6/I2GCBd3YIUWpj8trzO6lFiv4s6DPGUGouSTrZGpJ+EY0\\nmH4y/UjlJVHbvoTnIDyGUzqEv8RgRdIh2OzYp17t5WpEfKb60sXBD6bZrGdAOHqa\\nykHSHphU3QKBgDl0+MrBUbu1+Jr5xbon+NRjmsAMjzdfKN6/JLYHeZuYjjjYenFV\\nlLNCUsXQMtl5T6Jqn3pP/trcXvnAbGLel0+UlFsfxqfJTNC6S0oBW+jCGzix1Btf\\nPpXjENK/z5gjxtoe7nfeyHWAw77bS7A6LOM6JPScqAEUUN6DO5o/1ajLAoGBAKp5\\nToOf3Qp/cJHZrnjO9oQx2brp7OP/nE3qWXPyiY+1NF/M4YmxjM7xhj5HzFDEEJtQ\\njcj4niqnjTT9eaLTl4/DJNuCJw+KFivh34Faq8C9zxlGgk14snjmNs9ocsWrJnC3\\nXOkd9MEJKtj3XQdINdo0vf1X5JsymVOY9THP98sNAoGBANNYhg82LPfwJtu8RWW5\\nXRJeDSSm6AENlP+93PCgLDlYNXfqWlmvZlnuRFltcobGEQYj/TSYwEPRQ3Y83lXs\\n5W+m7bla9OA+OEaxXg48hzAl2JcpGTTH/9EpJSlorcK7vjUlb+PG+SLb6Z3lOhSb\\ng5etrkqM7jLBrb5qgf0osFCi\\n-----END PRIVATE KEY-----\\n",
-        "client_email": "meetfresh-data-migration@meetfresh-data-migration.iam.gserviceaccount.com",
-        "client_id": "114713800073444959941",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/meetfresh-data-migration%40meetfresh-data-migration.iam.gserviceaccount.com",
-        "universe_domain": "googleapis.com"
-        }
-        '''
-
-        # Load the JSON key from the string
-        service_account_info = json.loads(json_key)
-
-        # Authenticate using the service account
-        credentials = service_account.Credentials.from_service_account_info(service_account_info)
-
-        # ID of the Google Sheet where you want to export the data
-        SPREADSHEET_ID = '1dN3quMHzOj33XM3Jdbz5vK82JnZebWJX9UEdVPjAvXU'
-
-        # Authenticate with Google Sheets API
-        def authenticate_google_sheets():
-            service = build('sheets', 'v4', credentials=credentials)
-            return service
-
-        # Function to export headers to Google Sheets
-        def export_headers_to_sheet(df):
-            """
-            Exports the header row (column names) to Google Sheets.
-            :param df: DataFrame containing survey data.
-            """
-            service = authenticate_google_sheets()
-            header_data = [df.columns.tolist()]  # Extract column names as list
-
-            range_ = "Sheet1!A1"  # Assuming headers start from A1
-            body = {"values": header_data}
-
-            sheet = service.spreadsheets()
-            sheet.values().update(
-                spreadsheetId=SPREADSHEET_ID,
-                range=range_,
-                valueInputOption="RAW",
-                body=body
-            ).execute()
-            print("Headers exported to Google Sheets")
-
-        # Function to append survey responses to Google Sheets
-        def append_survey_response(response_data):
-            """
-            Appends a single survey response to the next available row in Google Sheets.
-            :param response_data: List containing survey response data, e.g., ["Alice", 90, "2025-03-26 10:00:00"]
-            """
-            service = authenticate_google_sheets()
-
-            range_ = "Sheet1!A2"  # Data starts from the second row (below the headers)
-            body = {"values": [response_data]}
-
-            sheet = service.spreadsheets()
-            sheet.values().append(
-                spreadsheetId=SPREADSHEET_ID,
-                range=range_,
-                valueInputOption="RAW",
-                body=body
-            ).execute()
-
-            print(f"New survey response added: {response_data}")
+        # Append new records to Google Sheets
+        # from config.google_utils import JSON_KEY, SPREADSHEET_ID
+        from config.google_utils import export_to_google_sheets
 
         if merged_df_response.empty:
             print("Error: DataFrame is empty, nothing to export.")
         # Test the whole process (clear and export)
         merged_df = merged_df_response.copy(deep=True)
-        export_headers_to_sheet(merged_df)
+        # Write down the header
+        export_to_google_sheets(merged_df, line=1)
+        # Write the body
+        if 'Ingredients' in merged_df.columns:
+            merged_df['Ingredients'] = merged_df['Ingredients'].astype(str)
+            merged_df['created_time'] = merged_df['created_time'].astype(str)
+        export_to_google_sheets(merged_df, line=2)
 
-        def test_export():
-            # Convert 'Recommendation' column to string (if it exists)
-            # if 'Recommendation' in merged_df.columns:
-            #     merged_df['Recommendation'] = merged_df['Recommendation'].astype(str)
-            # Convert 'Ingredients' column to string (if it exists)
-            if 'Ingredients' in merged_df.columns:
-                merged_df['Ingredients'] = merged_df['Ingredients'].astype(str)
-
-                merged_df['created_time'] = merged_df['created_time'].astype(str)
-
-            # Loop through each row in the DataFrame and append to Google Sheets
-            for index, row in merged_df.iterrows():
-                response_data = row.tolist()  # Convert the row to a list
-                append_survey_response(response_data)  # Append each row to Google Sheets
-        # Run the test export
-        test_export()
         if not results_data:
             return render_template('result.html', error_message="No recommendations found based on your input.")
         else:
             return render_template('result.html', responses=responses, results=results_data)
+
     return render_template('survey.html', questions=questions)
 
 
