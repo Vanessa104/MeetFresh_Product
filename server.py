@@ -8,13 +8,8 @@ from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-
 app = Flask(__name__)
 
-# Get the concatenated bilingual version here
-from config.questions import QUESTIONS_BI, OPTIONS_BI
-questions = {QUESTIONS_BI[key]: OPTIONS_BI[key] for key in
-             ['newcustomer', 'ingred', 'sweet', 'temp', 'size', 'people', 'wait']}
 
 # read csv file from google sheet using published url
 CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
@@ -62,7 +57,7 @@ df1.rename(columns = {'Sago': 'Coco Sago'}, inplace=True)
 df1.drop(columns=[''], inplace=True)
 
 # For later comparison between product ingred and survey ingred and filter=creation
-df1_ingred = df1.copy(deep=True).drop(columns=['Name', 'NameCH', 'Sweetness', 'Temperature', 'Preparation_Time'])
+df1_ingred = df1.copy(deep=True).drop(columns=['Name', 'NameCH', 'Sweetness', 'Temperature', 'PrepTime'])
 
 
 def save_response(responses):
@@ -75,28 +70,35 @@ def save_response(responses):
     df.to_csv("survey_results.csv", index=False)
 
 
+# Get the concatenated bilingual version here
+from src.questions import QUESTIONS_BI as QUESTIONS
+from src.questions import OPTIONS_BI as OPTIONS
+from src.questions import NUMERIZED_OPTIONS
+
+Questions = {QUESTIONS[key]: OPTIONS[key] for key in
+             ['newcustomer', 'ingred', 'sweet', 'temp', 'size', 'people', 'wait']}
+
 @app.route('/', methods=['GET', 'POST'])
 def survey():
     if request.method == 'POST':
         # Handling multiple ingredients
-        ingred_list = request.form.getlist(QUESTIONS_BI['ingred'])
+        ingred_list = request.form.getlist(QUESTIONS['ingred'])
         ingred_str = ", ".join(ingred_list)  # Convert list to a comma-separated string
         responses = {
             'ingred': ingred_str,
-            'sweet': request.form[QUESTIONS_BI['sweet']],
-            'temp': request.form[QUESTIONS_BI['temp']],
-            'size': request.form[QUESTIONS_BI['size']],
-            'people': request.form[QUESTIONS_BI['people']],
-            'wait': request.form[QUESTIONS_BI['wait']],
-            'newcustomer': request.form[QUESTIONS_BI['newcustomer']]
+            'sweet': request.form[QUESTIONS['sweet']],
+            'temp': request.form[QUESTIONS['temp']],
+            'size': request.form[QUESTIONS['size']],
+            'people': request.form[QUESTIONS['people']],
+            'wait': request.form[QUESTIONS['wait']],
+            'newcustomer': request.form[QUESTIONS['newcustomer']]
         }
 
-        import pandas as pd
         # Read survey response
         survey_response = pd.DataFrame([responses],
                                        columns=['ingred', 'sweet', 'temp', 'size', 'people', 'wait', 'newcustomer'])
 
-        # survey_response = survey_response.iloc[4:5]
+        # to-do: remove these redundant column name changes
         survey_response.rename(columns={'ingred':'Ingredients',
                                         'sweet': 'Sweetness',
                                         'temp': 'Temperature',
@@ -109,14 +111,14 @@ def survey():
 
         survey_matrix.drop(columns=['Size', 'People', 'New_Customer'], inplace=True)
         survey_matrix['Sweetness']= survey_matrix['Sweetness'].map(
-            {OPTIONS_BI['sweet'][idx]: NUMERIZED_OPTIONS['sweet'][idx]
-             for idx in range(len(OPTIONS_ENG['sweet']))})
+            {OPTIONS['sweet'][idx]: NUMERIZED_OPTIONS['sweet'][idx]
+             for idx in range(len(OPTIONS['sweet']))})
         survey_matrix['Temperature']= survey_matrix['Temperature'].map(
-            {OPTIONS_BI['temp'][idx]: NUMERIZED_OPTIONS['temp'][idx]
-             for idx in range(len(OPTIONS_ENG['temp']))})
+            {OPTIONS['temp'][idx]: NUMERIZED_OPTIONS['temp'][idx]
+             for idx in range(len(OPTIONS['temp']))})
         survey_matrix['Preparation_Time']= survey_matrix['Preparation_Time'].map(
-            {OPTIONS_BI['wait'][idx]: NUMERIZED_OPTIONS['wait'][idx]
-             for idx in range(len(OPTIONS_ENG['wait']))})
+            {OPTIONS['wait'][idx]: NUMERIZED_OPTIONS['wait'][idx]
+             for idx in range(len(OPTIONS['wait']))})
         # Convert the Ingredients column into list
         survey_matrix['Ingredients'] = survey_matrix['Ingredients'].apply(lambda x: x.split(','))
 
@@ -224,9 +226,6 @@ def survey():
 
         # Drop Top Product and Score columns efficiently
             df_result.drop(columns=[col for col in df_result.columns if "Top" in col or "Similarity Score" in col], inplace=True)
-            # survey_other_input = survey_response[['People','New_Customer']].iloc[:1]
-            # survey_other_input = survey_response[['People','New_Customer']].iloc[10:11]
-            # survey_other_input = survey_response[['People','New_Customer']].iloc[49:50]
             survey_other_input = survey_response[['People','New_Customer']]
             merged_df_response = pd.concat([survey_input, df_result, survey_other_input], axis=1)
             # add Dallas time as created time
@@ -242,8 +241,8 @@ def survey():
             results_data = {}
 
         # Append new records to Google Sheets
-        # from config.google_utils import JSON_KEY, SPREADSHEET_ID
-        from config.google_utils import export_to_google_sheets
+        # from src.google_utils import JSON_KEY, SPREADSHEET_ID
+        from src.google_utils import export_to_google_sheets
 
         if merged_df_response.empty:
             print("Error: DataFrame is empty, nothing to export.")
