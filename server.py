@@ -261,7 +261,7 @@ def survey():
         else:
             return render_template('result.html', responses=responses, results=results_data)
 
-    return render_template('survey.html', questions=questions)
+    return render_template('survey.html', questions=Questions)
 
 
 # @app.route('/download/<filename>')
