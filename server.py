@@ -1,6 +1,4 @@
-
-# PEG 2.0 (Process & Export to Google Sheet)
-
+#!/usr/bin/env python3
 from flask import Flask, render_template, request
 import pandas as pd
 import numpy as np
@@ -15,9 +13,6 @@ app = Flask(__name__)
 CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
 df = pd.read_csv(CSV_URL)
 df['Image'] = "static/" + df['Image'].fillna("").apply(lambda x: x.split("/")[-1])
-# data = df
-# data['Image'] = "static/" + data['Image'].apply(lambda x: x.split("/")[-1])
-# results_data = data.set_index('Name').to_dict(orient='index')
 
 # write a code to use sklearn binarizer to convert all words in 'Ingredients' columns to binary values
 # and drop 'Link','Image','Calories' columns
@@ -29,7 +24,7 @@ df1['Sweetness'] = df1['Sweetness'].map({'Low': 1, 'Med': 2, 'High': 3})
 #  for idx in range(len(OPTIONS_ENG['sweet']))})
 
 # Convert 'PrepTime' column to numerical values
-df1['Preparation_Time'] = df1['Preparation_Time'].str.extract('(\d+)').astype(float)
+df1['Preparation_Time'] = df1['Preparation_Time'].str.extract(r'(\d+)').astype(float)
 # if df1[preparation_time] <5 then 4, else if >=5 then 5 as new df1[preparation_time]
 df1['Preparation_Time'] = df1['Preparation_Time'].apply(lambda x: 4 if x < 5 else 5)
 
@@ -40,9 +35,6 @@ df1['Temperature'] = df1['Temperature'].map(temp_mapping)
 # size_mapping = {'One Size': 1, 'M': 2, 'L': 3}
 # df1['Size'] = df1['Size'].map(size_mapping)
 
-# # write a code to do one hot encoding for 'Sweetness','Temp','size' columns together with above
-# df2 = pd.get_dummies(df1, columns=['Sweetness','Temp','Size'])
-# print(df2.head())
 df1['Ingredients'] = df1['Ingredients'].fillna('')
 ingredient_encoded = pd.DataFrame(mlb.fit_transform(df1['Ingredients'].str.split(',')),
                                   columns=mlb.classes_,
@@ -83,9 +75,11 @@ def survey():
     if request.method == 'POST':
         # Handling multiple ingredients
         ingred_list = request.form.getlist(QUESTIONS['ingred'])
-        ingred_str = ", ".join(ingred_list)  # Convert list to a comma-separated string
+        # Convert list to a comma-separated string
+        ingred_str = ", ".join(ingred_list)
         responses = {
             'ingred': ingred_str,
+            # 'ingred': request.form[QUESTIONS['ingred']],
             'sweet': request.form[QUESTIONS['sweet']],
             'temp': request.form[QUESTIONS['temp']],
             'size': request.form[QUESTIONS['size']],
@@ -261,7 +255,7 @@ def survey():
         else:
             return render_template('result.html', responses=responses, results=results_data)
 
-    return render_template('survey.html', questions=Questions)
+    return render_template('survey.html', questions=Questions, question_list=QUESTIONS)
 
 
 # @app.route('/download/<filename>')
