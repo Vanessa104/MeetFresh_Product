@@ -57,7 +57,7 @@ df1.rename(columns = {'Sago': 'Coco Sago'}, inplace=True)
 df1.drop(columns=[''], inplace=True)
 
 # For later comparison between product ingred and survey ingred and filter=creation
-df1_ingred = df1.copy(deep=True).drop(columns=['Name', 'NameCH', 'Sweetness', 'Temperature', 'PrepTime'])
+df1_ingred = df1.copy(deep=True).drop(columns=['Name', 'NameCH', 'Sweetness', 'Temperature', 'Preparation_Time'])
 
 
 def save_response(responses):
