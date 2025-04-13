@@ -70,6 +70,7 @@ NUMERIZED_OPTIONS = {'sweet': [3, 2, 1],
 # Make a concatenated bilingual version for temporary use:
 QUESTIONS_BI = {key: f'{QUESTIONS_ENG[key]}\n{QUESTIONS_CHN[key]}'
                 for key in QUESTIONS_ENG}
-OPTIONS_BI = {key: f'{OPTIONS_ENG[key]} {OPTIONS_CHN[key]}'
+OPTIONS_BI = {key: [f'{OPTIONS_ENG[key][idx]} {OPTIONS_CHN[key][idx]}'
+                    for idx in range(len(OPTIONS_CHN[key]))]
               for key in OPTIONS_ENG}
 # ##----Actual End of block----###
