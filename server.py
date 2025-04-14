@@ -87,9 +87,13 @@ def survey():
         try:
             ingred_list = normalized_form_lists[QUESTIONS['ingred']]
             assert len(ingred_list) > 1, 'Please select at least one ingredient.'
+        except KeyError:
+            error_message = 'Please select at least one ingredient.'
+            return render_template('error.html', error_message=error_message)
+        except AssertionError as e:
+            return render_template('error.html', error_message=str(e))
         except Exception as e:
-            # Catch the AssertionError and get its message
-            error_message = f'{e}\n'
+            error_message = f'{e.__class__}: {e}\n'
             return render_template('error.html', error_message=error_message)
 
         # Convert list to a comma-separated string
