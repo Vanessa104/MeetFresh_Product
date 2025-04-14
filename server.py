@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from flask import Flask, render_template, request
+# import logging
+# logging.basicConfig(filename='app.log', level=logging.DEBUG)
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -73,19 +75,34 @@ Questions = {QUESTIONS[key]: OPTIONS[key] for key in
 @app.route('/', methods=['GET', 'POST'])
 def survey():
     if request.method == 'POST':
+        # Normalize form keys just in case Windows change line endings
+        # If no line-ending changes happens, these two lines doesn't affect anything
+        normalized_form = {key.replace('\r\n', '\n'): value for key, value in request.form.items()}
+        normalized_form_lists = {key.replace('\r\n', '\n'): request.form.getlist(key)
+                                 for key in request.form.keys()
+        }
+
         # Handling multiple ingredients
-        ingred_list = request.form.getlist(QUESTIONS['ingred'])
+        # Sanity check
+        try:
+            ingred_list = normalized_form_lists[QUESTIONS['ingred']]
+            assert len(ingred_list) > 1, 'Please select at least one ingredient.'
+        except Exception as e:
+            # Catch the AssertionError and get its message
+            error_message = f'{e}\n'
+            return render_template('error.html', error_message=error_message)
+
         # Convert list to a comma-separated string
         ingred_str = ", ".join(ingred_list)
         responses = {
             'ingred': ingred_str,
             # 'ingred': request.form[QUESTIONS['ingred']],
-            'sweet': request.form[QUESTIONS['sweet']],
-            'temp': request.form[QUESTIONS['temp']],
-            'size': request.form[QUESTIONS['size']],
-            'people': request.form[QUESTIONS['people']],
-            'wait': request.form[QUESTIONS['wait']],
-            'newcustomer': request.form[QUESTIONS['newcustomer']]
+            'sweet': normalized_form[QUESTIONS['sweet']],
+            'temp': normalized_form[QUESTIONS['temp']],
+            'size': normalized_form[QUESTIONS['size']],
+            'people': normalized_form[QUESTIONS['people']],
+            'wait': normalized_form[QUESTIONS['wait']],
+            'newcustomer': normalized_form[QUESTIONS['newcustomer']]
         }
 
         # Read survey response
@@ -103,6 +120,7 @@ def survey():
                                inplace=True)
         survey_matrix = survey_response.copy(deep=True)
 
+        # Map the values for the next step
         survey_matrix.drop(columns=['Size', 'People', 'New_Customer'], inplace=True)
         survey_matrix['Sweetness']= survey_matrix['Sweetness'].map(
             {OPTIONS['sweet'][idx]: NUMERIZED_OPTIONS['sweet'][idx]
@@ -114,7 +132,14 @@ def survey():
             {OPTIONS['wait'][idx]: NUMERIZED_OPTIONS['wait'][idx]
              for idx in range(len(OPTIONS['wait']))})
         # Convert the Ingredients column into list
-        survey_matrix['Ingredients'] = survey_matrix['Ingredients'].apply(lambda x: x.split(','))
+        # helper func to be applied by row:
+        Ingred_mapping_dict = {OPTIONS['ingred'][idx]: NUMERIZED_OPTIONS['ingred'][idx] for idx in range(len(OPTIONS['ingred']))}
+        def map_ingredients(ingred_list_str:str):
+            ingred_list_here = ingred_list_str.split(',')
+            ingred_list_here = [Ingred_mapping_dict[item.strip()] for item in ingred_list_here if item != '']
+            return ingred_list_here
+        # apply mapping by row
+        survey_matrix['Ingredients'] = survey_matrix['Ingredients'].apply(map_ingredients)
 
         # Create new columns (one hot encoded) based on df1's columns
         survey_matrix_new = survey_matrix.copy(deep=True)
@@ -136,6 +161,8 @@ def survey():
         common_columns = df1.iloc[:, 4:].columns.intersection(survey_ingred.iloc[:, 4:].columns)
 
         # Filter product_features where at least one value in common columns exists in df2
+        # print(survey_ingred)
+        # print(survey_ingred.to_dict('list'))
         filtered_columns = product_features[common_columns].isin(survey_ingred.to_dict('list')).any(axis=1)
         product_features = product_features[filtered_columns]
         # Filter survey input features (ensure numeric and without missing values)
@@ -266,7 +293,8 @@ def survey():
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080)
+    # app.debug = True # Enable debug mode
+    app.run(host='0.0.0.0', port=8080, debug=True, use_reloader=False)
 
 
 

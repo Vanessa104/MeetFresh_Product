@@ -12,7 +12,7 @@
         <label>{{ question }}</label><br>
             {% if question ==  question_list['ingred'] %}
                 {% for option in options %}
-                    <input type="checkbox" name="{{ question }}[]" value="{{ option }}"> {{ option }}<br>
+                    <input type="checkbox" name="{{ question }}" value="{{ option }}"> {{ option }}<br>
                 {% endfor %}
             {% elif options == "text" %}
                 <input type="text" name="{{ question }}" required><br><br>

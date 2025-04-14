@@ -63,6 +63,7 @@ NUMERIZED_OPTIONS = {'sweet': [3, 2, 1],
                      'temp': [1, 2],
                      # 'size': [2, 3],
                      # 'people': ["单人", "2 -- 3", "4 -- 5", "6人或以上"],
+                     'ingred': INGREDIENTS_ENG,  # Make sure only process English ingredients
                      'wait': [4, 5],
                      'newcustomer': [1, 0]}
 
