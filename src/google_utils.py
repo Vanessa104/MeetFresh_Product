@@ -8,8 +8,7 @@ JSON_KEY = '''
 "type": "service_account",
 "project_id": "meetfresh-data-migration",
 "private_key_id": "1d1dbef38e7044f2280cbc2838a70351228a7f7c",
-"private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCp71HrAwmm+qAh\\nvA4AsRNM14Y2zCVE26AAdjw7YJfbYQ0z22eG90Sbu3hyqrAmH4LFNkLebs9s2D0l\\nraFcAS...==
-",
+"private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCp71HrAwmm+qAh\\nvA4AsRNM14Y2zCVE26AAdjw7YJfbYQ0z22eG90Sbu3hyqrAmH4LFNkLebs9s2D0l\\nraFcAS...==",
 "client_email": "meetfresh-data-migration@meetfresh-data-migration.iam.gserviceaccount.com",
 "client_id": "114713800073444959941",
 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -28,9 +27,14 @@ def authenticate_google_sheets():
     Authenticates with Google Sheets API using the service account credentials.
     """
     service_account_info = json.loads(JSON_KEY)
+    # print(type(service_account_info), service_account_info)
+    print(service_account_info["private_key"])
+    service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
+    print(service_account_info["private_key"])
     credentials = service_account.Credentials.from_service_account_info(service_account_info)
     service = build('sheets', 'v4', credentials=credentials)
     return service
+
 
 def export_to_google_sheets(df, sheet_name="Sheet1", line:int=1):
     """
