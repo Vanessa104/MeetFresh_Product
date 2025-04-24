@@ -3,9 +3,6 @@ from flask import Flask, render_template, request
 # import logging
 # logging.basicConfig(filename='app.log', level=logging.DEBUG)
 import pandas as pd
-import numpy as np
-from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.metrics.pairwise import cosine_similarity
 
 
 app = Flask(__name__)
@@ -18,21 +15,13 @@ all_ingredients[all_ingredients.index('Coco Sago')] = 'Sago'
 
 
 # read csv file from google sheet using published url
-CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
-# df = pd.read_csv(CSV_URL)
-# df['Image'] = "static/" + df['Image'].fillna("").apply(lambda x: x.split("/")[-1])
+# CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
+# Alt: read a local file:
+CSV_URL = 'menu_items_w_og_onehot_ingredients.csv'
 
-df1, df1_ingred = memorize_products(CSV_URL)
-
-# just sanity check
-try:
-    assert sorted(df1_ingred.columns.tolist()) == sorted(all_ingredients)
-except Exception as e:
-    print(e)
-    for i in range(min(len(df1_ingred.columns), len(all_ingredients))):
-        print(df1_ingred.columns[i], all_ingredients[i])
-    exit(1)
-
+df1 = memorize_products(CSV_URL)
+# print(df1.columns[10:])
+product_features = df1.drop(columns=['Category', 'Name', 'NameCH', 'Calories','Ingredients', 'Size', 'Link', 'Image'])
 
 # Get the concatenated bilingual version here
 from src.questions import QUESTIONS_BI as QUESTIONS
@@ -42,7 +31,7 @@ from src.questions import NUMERIZED_OPTIONS
 Questions = {QUESTIONS[key]: OPTIONS[key] for key in
              ['newcustomer', 'ingred', 'sweet', 'temp', 'size', 'people', 'wait']}
 
-from src.funcs import parse_survey_response, map_survey_responses, calculate_similarity, generate_recommendations
+from src.funcs import parse_survey_response, map_survey_responses, clean_feature_matrices, calculate_similarity, generate_recommendations
 
 @app.route('/', methods=['GET', 'POST'])
 def survey():
@@ -56,49 +45,15 @@ def survey():
         survey_matrix = map_survey_responses(survey_response,
                                              option_dict=OPTIONS,
                                              target_dict=NUMERIZED_OPTIONS)
-        print(f'survey_matrix={survey_matrix}')
-        # Create new columns (one hot encoded) based on df1's columns
-        survey_input = survey_matrix.copy(deep=True)
-        for col in all_ingredients:
-            survey_input[col] = survey_input["Ingredients"].apply(lambda values: 1 if col in values else 0)
+        # print(f'survey_matrix={survey_matrix}')
 
-        # List columns by ingredients
-        survey_ingred = survey_matrix
-
-        # flatten list
-        survey_ingred = survey_ingred.explode('Ingredients')
-        for value in survey_ingred['Ingredients']:
-            survey_ingred[value] = 1
-        print(f'survey_ingred={survey_ingred}\nsurvey_input={survey_input}')
-        # Find common columns
-        product_features = df1.drop(columns=['Category', 'Name', 'NameCH', 'Calories','Ingredients', 'Size', 'Link', 'Image'])
-
-
-        # Apply temperature mask
-        temp_mask = product_features['Temperature'].isin(
-                survey_input['Temperature'].unique())
-        product_features = product_features[temp_mask]
-        # Because ingredients in the survey are identical to column names here, we know for sure:
-        # common_columns = survey_ingred.columns[4:]
-        common_columns = survey_matrix['Ingredients'].tolist()[0]
-        print(f'common_columns={common_columns}')
-        # print(f'survey_ingred.to_dict(\'list\')={survey_ingred.to_dict("list")}')
-
-        # Filter product_features where at least one value in common columns exists in df2
-        filtered_rows = product_features[common_columns].isin(survey_ingred.iloc[:, 1:].to_dict("list")).any(axis=1)
-        # print(f'filtered_rows={filtered_rows}')
-        product_features = product_features[filtered_rows]
-        # # Filter survey input features (ensure numeric and without missing values)
-        survey_input_features = survey_input.drop(columns=['Ingredients']).select_dtypes(include=[np.number]).dropna()
-        print(f'survey_input_features={survey_input_features}')
-
-        # Debug print for shapes
-        print("Product Features Shape:", product_features.shape)
-        print("Survey Input Features Shape:", survey_input_features.shape)
+        # Apply temperature mask and shrink the candidate pool
+        # Kept `survey_input` bc it's needed for output (to Google Sheets)
+        survey_input, filtered_product_features, survey_input_features = clean_feature_matrices(survey_matrix, product_features)
 
         # Calculate cosine similarity
         try:
-            similarity_matrix_survey = calculate_similarity(product_features.dropna(), survey_input_features)
+            similarity_matrix_survey = calculate_similarity(filtered_product_features, survey_input_features)
         except Exception as e:
             merged_df_response = pd.DataFrame()
             results_data = {}
@@ -111,7 +66,7 @@ def survey():
         # Convert the similarity matrix to a DataFrame
         similarity_df = pd.DataFrame(
                 similarity_matrix_survey,
-                index=product_features.index,
+                index=filtered_product_features.index,
                 columns=survey_input_features.index)
 
         # Get top 5 products
@@ -180,13 +135,13 @@ def survey():
 
 
         # Append new records to Google Sheets
-        # from src.google_utils import JSON_KEY, SPREADSHEET_ID
         from src.google_utils import export_to_google_sheets
 
         if merged_df_response.empty:
             print("Error: DataFrame is empty, nothing to export.")
         # Test the whole process (clear and export)
         merged_df = merged_df_response.copy(deep=True)
+        print('merged_df columns:', merged_df.columns)
         # Write down the header
         export_to_google_sheets(merged_df, line=1)
         # Write the body

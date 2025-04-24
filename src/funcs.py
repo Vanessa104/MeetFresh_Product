@@ -52,7 +52,6 @@ def memorize_products(url:str):
     # Map values to numerical for other columns
     product_info['Sweetness'] = product_info['Sweetness'].map(
         {'Low': 1, 'Med': 2, 'High': 3})
-    print(product_info['Preparation_Time'].value_counts())
     product_info['Preparation_Time'] = product_info['Preparation_Time'].map(
         {'1-3 min': 4, '4-6 min': 5})
     product_info['Temperature'] = product_info['Temperature'].map(
@@ -60,20 +59,17 @@ def memorize_products(url:str):
 
     # Just in case it's not one-hot coded yet
     if len(df.columns) < 12:
-        product_ingreds = df[['Ingredients']].apply(onehot_ingredients, axis=1).drop(columns=['Ingredients'])
-        product_ingreds = product_ingreds.fillna(0).astype(int)
+        product_ingred = df[['Ingredients']].apply(onehot_ingredients, axis=1).drop(columns=['Ingredients'])
+        product_ingred = product_ingred.fillna(0).astype(int)
     else:
-        irrelevant_colnames = ['Category', 'Name', 'NameCH', 'Sweetness', 'Preparation_Time', 'Calories', 'Temperature', 'Size', 'Link', 'Image']
+        irrelevant_colnames = ['Category', 'Name', 'NameCH', 'Calories','Sweetness', 'Temperature', 'Preparation_Time', 'Size', 'Link', 'Image']
         kept_colnames = [colname for colname in df.columns if colname not in irrelevant_colnames]
-        product_ingreds = df[kept_colnames]
+        product_ingred = df[kept_colnames]
 
-    print(product_ingreds.columns)
+    # merge the two
+    df1 = pd.concat([product_info, product_ingred], axis=1)
 
-    # # merge the two for now
-    df1 = pd.concat([product_info, product_ingreds], axis=1)
-
-    return df1, product_ingreds
-
+    return df1
 
 
 def parse_survey_response(request_form, question_dict):
@@ -144,7 +140,7 @@ def map_survey_responses(response_df, option_dict, target_dict):
     """
     df = response_df.copy(deep=True)
     df.drop(columns=['Size', 'People', 'New_Customer'], inplace=True)
-    print(df.shape, df.columns)
+    # print(df.shape, df.columns)
     # Map stuff
     df['Sweetness'] = df['Sweetness'].map(
         {option_dict['sweet'][idx]: target_dict['sweet'][idx]
@@ -165,6 +161,34 @@ def map_survey_responses(response_df, option_dict, target_dict):
     # apply mapping by row
     df['Ingredients'] = df['Ingredients'].apply(map_ingredients)
     return df
+
+
+def clean_feature_matrices(survey_matrix, product_features):
+    # Create new columns (one hot encoded) based on df1's columns
+    survey_input = survey_matrix.copy(deep=True)
+    for col in product_features.columns.tolist()[3:]:
+        survey_input[col] = survey_input["Ingredients"].apply(lambda values: 1 if col in values else 0)
+    # Apply temperature mask
+    temp_mask = product_features['Temperature'].isin(
+        survey_input['Temperature'].unique())
+    filtered_product_features = product_features[temp_mask]
+    # Get common columns (aka selected ingredients)
+    common_columns = survey_matrix['Ingredients'].tolist()[0]
+    # print(f'common_columns={common_columns}')
+
+    # Only keep the products that have at least one of the selected ingredients
+    filtered_rows = filtered_product_features[common_columns].eq(
+        [1] * len(common_columns)).any(axis=1)
+    # print(f'filtered_rows={filtered_rows}')
+    filtered_product_features = filtered_product_features[filtered_rows]
+
+    # # Filter survey input features (ensure numeric and without missing values)
+    survey_input_features = survey_input.drop(columns=['Ingredients']).select_dtypes(include=[np.number]).dropna()
+
+    # sanity check
+    assert filtered_product_features.shape[1] == survey_input_features.shape[1]
+
+    return survey_input, filtered_product_features, survey_input_features
 
 
 from sklearn.metrics.pairwise import cosine_similarity
