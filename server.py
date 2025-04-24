@@ -10,58 +10,28 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 app = Flask(__name__)
 
+from src.funcs import memorize_products
+from src.questions import INGREDIENTS_ENG as all_ingredients
+
+# temporary
+all_ingredients[all_ingredients.index('Coco Sago')] = 'Sago'
+
 
 # read csv file from google sheet using published url
 CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
-df = pd.read_csv(CSV_URL)
-df['Image'] = "static/" + df['Image'].fillna("").apply(lambda x: x.split("/")[-1])
+# df = pd.read_csv(CSV_URL)
+# df['Image'] = "static/" + df['Image'].fillna("").apply(lambda x: x.split("/")[-1])
 
-# write a code to use sklearn binarizer to convert all words in 'Ingredients' columns to binary values
-# and drop 'Link','Image','Calories' columns
-mlb = MultiLabelBinarizer()
-df1 = df.drop(['Category', 'Calories', 'Size', 'Link', 'Image'], axis=1)
-# Convert 'Sweetness' column to numerical values
-df1['Sweetness'] = df1['Sweetness'].map({'Low': 1, 'Med': 2, 'High': 3})
-# {OPTIONS_ENG['sweet'][idx]: NUMERIZED_OPTIONS['sweet'][idx]
-#  for idx in range(len(OPTIONS_ENG['sweet']))})
+df1, df1_ingred = memorize_products(CSV_URL)
 
-# Convert 'PrepTime' column to numerical values
-df1['Preparation_Time'] = df1['Preparation_Time'].str.extract(r'(\d+)').astype(float)
-# if df1[preparation_time] <5 then 4, else if >=5 then 5 as new df1[preparation_time]
-df1['Preparation_Time'] = df1['Preparation_Time'].apply(lambda x: 4 if x < 5 else 5)
-
-# Convert 'Temp' to numerical values
-temp_mapping = {'Icy': 1, 'Hot': 2}
-df1['Temperature'] = df1['Temperature'].map(temp_mapping)
-# Convert 'Size' to numerical values
-# size_mapping = {'One Size': 1, 'M': 2, 'L': 3}
-# df1['Size'] = df1['Size'].map(size_mapping)
-
-df1['Ingredients'] = df1['Ingredients'].fillna('')
-ingredient_encoded = pd.DataFrame(mlb.fit_transform(df1['Ingredients'].str.split(',')),
-                                  columns=mlb.classes_,
-                                  index=df1.index)
-
-# Merge one-hot encoded ingredient columns back
-df1 = df1.join(ingredient_encoded).drop(columns=['Ingredients'])
-# df1= df1.drop(columns=[' Boba',' Grass Jelly',' Melon Jelly',
-# ' Mini Q',' Red Beans', ' Rice Balls', ' Strawberry', ' Taro Paste',
-# ' Taro','Taro Ball',' Taro Balls',' ', ' Sago'])
-df1.rename(columns = {'Sago': 'Coco Sago'}, inplace=True)
-df1.drop(columns=[''], inplace=True)
-
-# For later comparison between product ingred and survey ingred and filter=creation
-df1_ingred = df1.copy(deep=True).drop(columns=['Name', 'NameCH', 'Sweetness', 'Temperature', 'Preparation_Time'])
-
-
-def save_response(responses):
-    df = pd.DataFrame([responses], columns=['ingred', 'sweet', 'temp', 'size', 'people','wait', 'newcustomer'])
-    try:
-        existing_df = pd.read_csv("survey_results.csv")
-        df = pd.concat([existing_df, df], ignore_index=True)
-    except FileNotFoundError:
-        pass
-    df.to_csv("survey_results.csv", index=False)
+# just sanity check
+try:
+    assert sorted(df1_ingred.columns.tolist()) == sorted(all_ingredients)
+except Exception as e:
+    print(e)
+    for i in range(min(len(df1_ingred.columns), len(all_ingredients))):
+        print(df1_ingred.columns[i], all_ingredients[i])
+    exit(1)
 
 
 # Get the concatenated bilingual version here
@@ -72,85 +42,25 @@ from src.questions import NUMERIZED_OPTIONS
 Questions = {QUESTIONS[key]: OPTIONS[key] for key in
              ['newcustomer', 'ingred', 'sweet', 'temp', 'size', 'people', 'wait']}
 
+from src.funcs import parse_survey_response, map_survey_responses, calculate_similarity, generate_recommendations
+
 @app.route('/', methods=['GET', 'POST'])
 def survey():
     if request.method == 'POST':
-        # Normalize form keys just in case Windows change line endings
-        # If no line-ending changes happens, these two lines doesn't affect anything
-        normalized_form = {key.replace('\r\n', '\n'): value for key, value in request.form.items()}
-        normalized_form_lists = {key.replace('\r\n', '\n'): request.form.getlist(key)
-                                 for key in request.form.keys()
-        }
+        survey_response = parse_survey_response(request_form=request.form,
+                                                question_dict=QUESTIONS)
+        # Handling error
+        if type(survey_response) is str:
+            return render_template('error.html', error_message=survey_response)
 
-        # Handling multiple ingredients
-        # Sanity check
-        try:
-            ingred_list = normalized_form_lists[QUESTIONS['ingred']]
-            assert len(ingred_list) > 1, 'Please select at least one ingredient.'
-        except KeyError:
-            error_message = 'Please select at least one ingredient.'
-            return render_template('error.html', error_message=error_message)
-        except AssertionError as e:
-            return render_template('error.html', error_message=str(e))
-        except Exception as e:
-            error_message = f'{e.__class__}: {e}\n'
-            return render_template('error.html', error_message=error_message)
-
-        # Convert list to a comma-separated string
-        ingred_str = ", ".join(ingred_list)
-        responses = {
-            'ingred': ingred_str,
-            # 'ingred': request.form[QUESTIONS['ingred']],
-            'sweet': normalized_form[QUESTIONS['sweet']],
-            'temp': normalized_form[QUESTIONS['temp']],
-            'size': normalized_form[QUESTIONS['size']],
-            'people': normalized_form[QUESTIONS['people']],
-            'wait': normalized_form[QUESTIONS['wait']],
-            'newcustomer': normalized_form[QUESTIONS['newcustomer']]
-        }
-
-        # Read survey response
-        survey_response = pd.DataFrame([responses],
-                                       columns=['ingred', 'sweet', 'temp', 'size', 'people', 'wait', 'newcustomer'])
-
-        # to-do: remove these redundant column name changes
-        survey_response.rename(columns={'ingred':'Ingredients',
-                                        'sweet': 'Sweetness',
-                                        'temp': 'Temperature',
-                                        'size': 'Size',
-                                        'people': 'People',
-                                        'wait': 'Preparation_Time',
-                                        'newcustomer': 'New_Customer'},
-                               inplace=True)
-        survey_matrix = survey_response.copy(deep=True)
-
-        # Map the values for the next step
-        survey_matrix.drop(columns=['Size', 'People', 'New_Customer'], inplace=True)
-        survey_matrix['Sweetness']= survey_matrix['Sweetness'].map(
-            {OPTIONS['sweet'][idx]: NUMERIZED_OPTIONS['sweet'][idx]
-             for idx in range(len(OPTIONS['sweet']))})
-        survey_matrix['Temperature']= survey_matrix['Temperature'].map(
-            {OPTIONS['temp'][idx]: NUMERIZED_OPTIONS['temp'][idx]
-             for idx in range(len(OPTIONS['temp']))})
-        survey_matrix['Preparation_Time']= survey_matrix['Preparation_Time'].map(
-            {OPTIONS['wait'][idx]: NUMERIZED_OPTIONS['wait'][idx]
-             for idx in range(len(OPTIONS['wait']))})
-        # Convert the Ingredients column into list
-        # helper func to be applied by row:
-        Ingred_mapping_dict = {OPTIONS['ingred'][idx]: NUMERIZED_OPTIONS['ingred'][idx] for idx in range(len(OPTIONS['ingred']))}
-        def map_ingredients(ingred_list_str:str):
-            ingred_list_here = ingred_list_str.split(',')
-            ingred_list_here = [Ingred_mapping_dict[item.strip()] for item in ingred_list_here if item != '']
-            return ingred_list_here
-        # apply mapping by row
-        survey_matrix['Ingredients'] = survey_matrix['Ingredients'].apply(map_ingredients)
-
+        survey_matrix = map_survey_responses(survey_response,
+                                             option_dict=OPTIONS,
+                                             target_dict=NUMERIZED_OPTIONS)
+        print(f'survey_matrix={survey_matrix}')
         # Create new columns (one hot encoded) based on df1's columns
-        survey_matrix_new = survey_matrix.copy(deep=True)
-        for col in df1_ingred.columns:
-            survey_matrix_new[col] = survey_matrix_new["Ingredients"].apply(lambda values: 1 if col in values else 0)
-
-        survey_input = survey_matrix_new
+        survey_input = survey_matrix.copy(deep=True)
+        for col in all_ingredients:
+            survey_input[col] = survey_input["Ingredients"].apply(lambda values: 1 if col in values else 0)
 
         # List columns by ingredients
         survey_ingred = survey_matrix
@@ -159,111 +69,115 @@ def survey():
         survey_ingred = survey_ingred.explode('Ingredients')
         for value in survey_ingred['Ingredients']:
             survey_ingred[value] = 1
+        print(f'survey_ingred={survey_ingred}\nsurvey_input={survey_input}')
         # Find common columns
-        product_features = df1[df1['Temperature'].isin(survey_input['Temperature'])].drop(columns=['Name', 'NameCH'])
-        # Find the common columns between df1 and survey_input
-        common_columns = df1.iloc[:, 4:].columns.intersection(survey_ingred.iloc[:, 4:].columns)
+        product_features = df1.drop(columns=['Category', 'Name', 'NameCH', 'Calories','Ingredients', 'Size', 'Link', 'Image'])
+
+
+        # Apply temperature mask
+        temp_mask = product_features['Temperature'].isin(
+                survey_input['Temperature'].unique())
+        product_features = product_features[temp_mask]
+        # Because ingredients in the survey are identical to column names here, we know for sure:
+        # common_columns = survey_ingred.columns[4:]
+        common_columns = survey_matrix['Ingredients'].tolist()[0]
+        print(f'common_columns={common_columns}')
+        # print(f'survey_ingred.to_dict(\'list\')={survey_ingred.to_dict("list")}')
 
         # Filter product_features where at least one value in common columns exists in df2
-        # print(survey_ingred)
-        # print(survey_ingred.to_dict('list'))
-        filtered_columns = product_features[common_columns].isin(survey_ingred.to_dict('list')).any(axis=1)
-        product_features = product_features[filtered_columns]
-        # Filter survey input features (ensure numeric and without missing values)
+        filtered_rows = product_features[common_columns].isin(survey_ingred.iloc[:, 1:].to_dict("list")).any(axis=1)
+        # print(f'filtered_rows={filtered_rows}')
+        product_features = product_features[filtered_rows]
+        # # Filter survey input features (ensure numeric and without missing values)
         survey_input_features = survey_input.drop(columns=['Ingredients']).select_dtypes(include=[np.number]).dropna()
+        print(f'survey_input_features={survey_input_features}')
 
         # Debug print for shapes
         print("Product Features Shape:", product_features.shape)
         print("Survey Input Features Shape:", survey_input_features.shape)
 
         # Calculate cosine similarity
-        def calculate_similarity(product_features, survey_input_features):
-            if product_features.shape[0] == 0 or survey_input_features.shape[0] == 0:
-                raise ValueError("Input arrays must contain at least one sample.")
-            similarity_matrix = cosine_similarity(product_features, survey_input_features)
-            return similarity_matrix
-
         try:
-            similarity_matrix_survey = calculate_similarity(product_features, survey_input_features)
-        except ValueError as e:
-            print(f"Error: {e}")
-            similarity_matrix_survey = None
-        if similarity_matrix_survey is not None:
-            # Convert the similarity matrix to a DataFrame
-            similarity_df = pd.DataFrame(
-                similarity_matrix_survey,
-                index=product_features.index,
-                columns=survey_input_features.index
-            )
-
-            # Get top 5 products
-            similarity_df = similarity_df.sort_values(by=similarity_df.columns[0], ascending=False)
-            similarity_df = similarity_df.head(5)
-
-            # Merge with original data for recommendations
-            recommendation_df = df.merge(similarity_df, left_index=True, right_index=True, how='inner')
-            recommendation_df = recommendation_df.sort_values(by=similarity_df.columns[0], ascending=False)
-
-            # Rename the similarity column
-            recommendation_df_new = recommendation_df.copy(deep=True)
-            recommendation_df_new.rename(columns={recommendation_df_new.columns[-1]: "Similarity Score"}, inplace=True)
-
-            # Convert to dictionary for the output
-            recommendation_df_new = recommendation_df_new.drop_duplicates(subset=['Name'])
-            results_data = recommendation_df_new.set_index('Name').to_dict(orient='index')
-            # Show results
-            print(results_data)
-            # Get the last column name dynamically
-            last_column = recommendation_df.columns[-1]
-
-            # round 2 decimals for last column in 
-            recommendation_df[last_column] = recommendation_df[last_column].round(2)
-            # Create a dictionary where:
-            # - Key: Last column name
-            # - Value: List of tuples (Name, Last Column Value)
-
-            recommendation_dict = {
-                last_column: list(zip(recommendation_df["Name"], recommendation_df[last_column]))
-            }
-
-            # Convert to DataFrame format
-            df_list = []
-            for key, product_list in recommendation_dict.items():
-                row = {"CustomerID": key}  # Use key as identifier
-                for i, (product, score) in enumerate(product_list, start=1):
-                    row[f"Top{i} Product"] = product
-                    row[f"Similarity Score Top{i}"] = score
-
-                # Generate concatenated recommendation string dynamically
-                recommendations = [
-                    f"{row.get(f'Top{i} Product', 'NA')},{row.get(f'Similarity Score Top{i}', 'NA')}"
-                    for i in range(1, 6)
-                ]
-                row["Recommendation"] = ",".join(recommendations)
-
-                df_list.append(row)
-
-            # Create DataFrame
-            df_result = pd.DataFrame.from_records(df_list)
-
-            # Set CustomerID as index
-            df_result.set_index("CustomerID", inplace=True)
-
-        # Drop Top Product and Score columns efficiently
-            df_result.drop(columns=[col for col in df_result.columns if "Top" in col or "Similarity Score" in col], inplace=True)
-            survey_other_input = survey_response[['People','New_Customer']]
-            merged_df_response = pd.concat([survey_input, df_result, survey_other_input], axis=1)
-            # add Dallas time as created time
-            from datetime import datetime
-            from zoneinfo import ZoneInfo
-            dallas_time = datetime.now(ZoneInfo("America/Chicago"))
-            merged_df_response['created_time'] = dallas_time
-            # merged_df_response['created_time'] = pd.to_datetime('now')
-
-        else:
-            print("Similarity matrix could not be calculated. No recommendations to display.")
+            similarity_matrix_survey = calculate_similarity(product_features.dropna(), survey_input_features)
+        except Exception as e:
             merged_df_response = pd.DataFrame()
             results_data = {}
+            print("Similarity matrix could not be calculated. No recommendations to display.")
+            error_massage=f"Error when calculating similarity: {e}"
+            print(error_massage)
+            return render_template('error.html', error_message=error_massage)
+
+
+        # Convert the similarity matrix to a DataFrame
+        similarity_df = pd.DataFrame(
+                similarity_matrix_survey,
+                index=product_features.index,
+                columns=survey_input_features.index)
+
+        # Get top 5 products
+        similarity_df = similarity_df.sort_values(by=similarity_df.columns[0], ascending=False).head(5)
+
+        # Merge with original data for recommendations
+        # note-to-self: `df1` should be `product_info` here
+        recommendation_df = df1.merge(similarity_df, left_index=True, right_index=True, how='inner')
+        recommendation_df = recommendation_df.sort_values(by=similarity_df.columns[0], ascending=False)
+
+        # Rename the similarity column
+        recommendation_df_new = recommendation_df.copy(deep=True)
+        recommendation_df_new.rename(columns={recommendation_df_new.columns[-1]: "Similarity Score"}, inplace=True)
+
+        # Convert to dictionary for the output
+        recommendation_df_new = recommendation_df_new.drop_duplicates(subset=['Name'])
+        results_data = recommendation_df_new.set_index('Name').to_dict(orient='index')
+        # Show results
+        print(results_data.keys())
+        # Get the last column name dynamically
+        last_column = recommendation_df.columns[-1]
+
+        # round 2 decimals for last column in
+        recommendation_df[last_column] = recommendation_df[last_column].round(2)
+        # Create a dictionary where:
+        # - Key: Last column name
+        # - Value: List of tuples (Name, Last Column Value)
+
+        recommendation_dict = {
+            last_column: list(zip(recommendation_df["Name"], recommendation_df[last_column]))
+        }
+
+        # Convert to DataFrame format
+        df_list = []
+        for key, product_list in recommendation_dict.items():
+            row = {"CustomerID": key}  # Use key as identifier
+            for i, (product, score) in enumerate(product_list, start=1):
+                row[f"Top{i} Product"] = product
+                row[f"Similarity Score Top{i}"] = score
+
+            # Generate concatenated recommendation string dynamically
+            recommendations = [
+                f"{row.get(f'Top{i} Product', 'NA')},{row.get(f'Similarity Score Top{i}', 'NA')}"
+                for i in range(1, 6)
+            ]
+            row["Recommendation"] = ",".join(recommendations)
+
+            df_list.append(row)
+
+        # Create DataFrame
+        df_result = pd.DataFrame.from_records(df_list)
+
+        # Set CustomerID as index
+        df_result.set_index("CustomerID", inplace=True)
+
+        # Drop Top Product and Score columns efficiently
+        df_result.drop(columns=[col for col in df_result.columns if "Top" in col or "Similarity Score" in col], inplace=True)
+        survey_other_input = survey_response[['People','New_Customer']]
+        merged_df_response = pd.concat([survey_input, df_result, survey_other_input], axis=1)
+        # add Dallas time as created time
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        dallas_time = datetime.now(ZoneInfo("America/Chicago"))
+        merged_df_response['created_time'] = dallas_time
+        # merged_df_response['created_time'] = pd.to_datetime('now')
+
 
         # Append new records to Google Sheets
         # from src.google_utils import JSON_KEY, SPREADSHEET_ID
