@@ -67,6 +67,7 @@ def export_to_google_sheets(df, sheet_name="Sheet1", line:int=1):
         first_column = sheet.values().get(spreadsheetId=SPREADSHEET_ID,
                                           range=f"{sheet_name}!A:A").execute()
         line_num = len(first_column.get('values', []))
+        print(f'The sheet has {line_num} existing rows.')
 
         # Assume multiple lines (downward-compatible with a single line)
         # Make sure to export content by line
