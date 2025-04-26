@@ -245,14 +245,14 @@ def format_output_df(input_df, response_df, recommendation_df):
     dallas_time = datetime.now(ZoneInfo("America/Chicago"))
     output_df['created_time'] = dallas_time
 
-    # Make customer ID
-    import re, random
-    # Replace all non-digit characters with an empty string
-    id_num = re.sub(r'\D', '', str(dallas_time))
-    # Add another random two digits
-    id_num = id_num + str(random.randint(10,99))
-    output_df = pd.concat([pd.DataFrame({"CustomerID": [id_num]}),
-                           output_df], axis=1)
+    # # Make customer ID
+    # import re, random
+    # # Replace all non-digit characters with an empty string
+    # id_num = re.sub(r'\D', '', str(dallas_time))
+    # # Add another random two digits
+    # id_num = id_num + str(random.randint(10,99))
+    # output_df = pd.concat([pd.DataFrame({"CustomerID": [id_num]}),
+    #                        output_df], axis=1)
 
     # Convert content to strings
     if 'Ingredients' in output_df.columns:
