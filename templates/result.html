@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Survey Result</title>
+    <title>Product Recommendation</title>
 </head>
 <body>
-    <h1>Survey Result</h1>
-    <p>Thank you for completing the survey! Based on your response, check out the links below:</p>
+    <h1>Product Recommendation</h1>
+    <p>Thank you for completing the questionnaire! Based on your response, check out the products below:</p>
     
     <!-- Display responses -->
-    <label>{{ responses }}</label><br>
+<!--    <label>{{ responses }}</label><br>-->
 
     <!-- Check if results exist and display them -->
     {% if results %}
-        {% for item, details in results.items() %}
-            <h3>{{ item }}</h3>
-            <h3>{{ details['NameCH'] }}</h3>
-            <img src="{{ details['Image'] }}" alt="{{ item }}" width="200">
-            <a href="{{ details['Link'] }}" target="_blank">More Info</a>
+        {% for item in results %}
+            <h3>{{ item['Name'] }}</h3>
+            <h3>{{ item['NameCH'] }}</h3>
+            <img src="{{ item['Image'] }}" alt="{{ item['Name'] }}" width="200">
+            <a href="{{ item['Link'] }}" target="_blank">More Info</a>
             <br><br>
         {% endfor %}
     {% else %}

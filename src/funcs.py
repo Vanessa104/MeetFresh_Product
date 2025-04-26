@@ -218,6 +218,7 @@ def generate_recommendations(info_df, similarity_df):
 
     recommendations = info_df.loc[top_recommendations.index]
     recommendations['Similarity Score'] = top_recommendations[0]
+    recommendations['Rank'] = np.arange(1, 6)
     return recommendations
 
 

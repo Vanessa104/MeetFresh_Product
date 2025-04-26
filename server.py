@@ -45,7 +45,6 @@ def survey():
         survey_matrix = map_survey_responses(survey_response,
                                              option_dict=OPTIONS,
                                              target_dict=NUMERIZED_OPTIONS)
-        # print(f'survey_matrix={survey_matrix}')
 
         # Apply temperature mask and shrink the candidate pool
         # Kept `survey_input` bc it's needed for output (to Google Sheets)
@@ -55,8 +54,6 @@ def survey():
         try:
             similarity_matrix_survey = calculate_similarity(filtered_product_features, survey_input_features)
         except Exception as e:
-            # merged_df_response = pd.DataFrame()
-            # results_data = {}
             print("Similarity matrix could not be calculated. No recommendations to display.")
             error_message=f"Error when calculating similarity: {e}\nYour response: {survey_response}"
             print(error_message)
@@ -70,14 +67,15 @@ def survey():
                 columns=survey_input_features.index)
 
         # Rank products by score and take top 5
-        recommendation_df = generate_recommendations(info_df=df1[['Name', 'NameCH', 'Image', 'Link']],
-                                                     similarity_df=similarity_df)
+        recommendation_df = generate_recommendations(
+            info_df=df1[['Name', 'NameCH', 'Image', 'Link']],
+            similarity_df=similarity_df)
 
         # Generate df to be written out
         output_df = format_output_df(input_df=survey_input,
                                      response_df=survey_response,
                                      recommendation_df=recommendation_df)
-        print('output_df.shape = ', output_df.shape)
+        # print('output_df.shape = ', output_df.shape)
         # Sanity check
         if output_df.empty:
             error_message = "Error: DataFrame is empty, nothing to export."
@@ -93,11 +91,8 @@ def survey():
         export_to_google_sheets(output_df, line=2)
 
         # Show results
-        results_data = recommendation_df.set_index('Name').to_dict(orient='index')
-        print(results_data.keys())
-        # print(recommendation_df['Link'])
-        # print(recommendation_df['Image'])
-        # print(recommendation_df.columns)
+        results_data = recommendation_df.to_dict(orient='records')
+        print(results_data)
 
         if not results_data:
             return render_template('result.html', error_message="No recommendations found based on your input.")
