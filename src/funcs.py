@@ -218,5 +218,44 @@ def generate_recommendations(info_df, similarity_df):
 
     recommendations = info_df.loc[top_recommendations.index]
     recommendations['Similarity Score'] = top_recommendations[0]
-    return recommendations.to_dict(orient='index')
+    return recommendations
 
+
+def format_output_df(input_df, response_df, recommendation_df):
+    """
+    Incorporate all info into the format expected in the output Google Sheet
+    """
+    # Format the DF to be written to Google Sheets
+    output_df = input_df.copy(deep=True)
+
+    # Format column 'Recommendation': turn rec_df to string
+    recommendations = [f'{i}. {row["Name"]}, {row["Similarity Score"]}'
+                       for i, row in recommendation_df.iterrows()]
+    output_df['Recommendation'] = "; ".join(recommendations)
+
+    # Add back other survey input:
+    output_df = pd.concat([output_df,
+                           response_df[['People', 'New_Customer']]],
+                          axis=1)
+
+    # Add Dallas time as created time
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    dallas_time = datetime.now(ZoneInfo("America/Chicago"))
+    output_df['created_time'] = dallas_time
+
+    # Make customer ID
+    import re, random
+    # Replace all non-digit characters with an empty string
+    id_num = re.sub(r'\D', '', str(dallas_time))
+    # Add another random two digits
+    id_num = id_num + str(random.randint(10,99))
+    output_df = pd.concat([pd.DataFrame({"CustomerID": [id_num]}),
+                           output_df], axis=1)
+
+    # Convert content to strings
+    if 'Ingredients' in output_df.columns:
+        output_df['Ingredients'] = output_df['Ingredients'].astype(str)
+        output_df['created_time'] = output_df['created_time'].astype(str)
+
+    return output_df

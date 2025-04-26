@@ -31,7 +31,7 @@ from src.questions import NUMERIZED_OPTIONS
 Questions = {QUESTIONS[key]: OPTIONS[key] for key in
              ['newcustomer', 'ingred', 'sweet', 'temp', 'size', 'people', 'wait']}
 
-from src.funcs import parse_survey_response, map_survey_responses, clean_feature_matrices, calculate_similarity, generate_recommendations
+from src.funcs import parse_survey_response, map_survey_responses, clean_feature_matrices, calculate_similarity, generate_recommendations, format_output_df
 
 @app.route('/', methods=['GET', 'POST'])
 def survey():
@@ -51,16 +51,16 @@ def survey():
         # Kept `survey_input` bc it's needed for output (to Google Sheets)
         survey_input, filtered_product_features, survey_input_features = clean_feature_matrices(survey_matrix, product_features)
 
-        # Calculate cosine similarity
+        # Calculate similarity
         try:
             similarity_matrix_survey = calculate_similarity(filtered_product_features, survey_input_features)
         except Exception as e:
-            merged_df_response = pd.DataFrame()
-            results_data = {}
+            # merged_df_response = pd.DataFrame()
+            # results_data = {}
             print("Similarity matrix could not be calculated. No recommendations to display.")
-            error_massage=f"Error when calculating similarity: {e}"
-            print(error_massage)
-            return render_template('error.html', error_message=error_massage)
+            error_message=f"Error when calculating similarity: {e}\nYour response: {survey_response}"
+            print(error_message)
+            return render_template('error.html', error_message=error_message)
 
 
         # Convert the similarity matrix to a DataFrame
@@ -69,91 +69,40 @@ def survey():
                 index=filtered_product_features.index,
                 columns=survey_input_features.index)
 
-        # Get top 5 products
-        similarity_df = similarity_df.sort_values(by=similarity_df.columns[0], ascending=False).head(5)
+        # Rank products by score and take top 5
+        recommendation_df = generate_recommendations(info_df=df1[['Name', 'NameCH', 'Image', 'Link']],
+                                                     similarity_df=similarity_df)
 
-        # Merge with original data for recommendations
-        # note-to-self: `df1` should be `product_info` here
-        recommendation_df = df1.merge(similarity_df, left_index=True, right_index=True, how='inner')
-        recommendation_df = recommendation_df.sort_values(by=similarity_df.columns[0], ascending=False)
-
-        # Rename the similarity column
-        recommendation_df_new = recommendation_df.copy(deep=True)
-        recommendation_df_new.rename(columns={recommendation_df_new.columns[-1]: "Similarity Score"}, inplace=True)
-
-        # Convert to dictionary for the output
-        recommendation_df_new = recommendation_df_new.drop_duplicates(subset=['Name'])
-        results_data = recommendation_df_new.set_index('Name').to_dict(orient='index')
-        # Show results
-        print(results_data.keys())
-        # Get the last column name dynamically
-        last_column = recommendation_df.columns[-1]
-
-        # round 2 decimals for last column in
-        recommendation_df[last_column] = recommendation_df[last_column].round(2)
-        # Create a dictionary where:
-        # - Key: Last column name
-        # - Value: List of tuples (Name, Last Column Value)
-
-        recommendation_dict = {
-            last_column: list(zip(recommendation_df["Name"], recommendation_df[last_column]))
-        }
-
-        # Convert to DataFrame format
-        df_list = []
-        for key, product_list in recommendation_dict.items():
-            row = {"CustomerID": key}  # Use key as identifier
-            for i, (product, score) in enumerate(product_list, start=1):
-                row[f"Top{i} Product"] = product
-                row[f"Similarity Score Top{i}"] = score
-
-            # Generate concatenated recommendation string dynamically
-            recommendations = [
-                f"{row.get(f'Top{i} Product', 'NA')},{row.get(f'Similarity Score Top{i}', 'NA')}"
-                for i in range(1, 6)
-            ]
-            row["Recommendation"] = ",".join(recommendations)
-
-            df_list.append(row)
-
-        # Create DataFrame
-        df_result = pd.DataFrame.from_records(df_list)
-
-        # Set CustomerID as index
-        df_result.set_index("CustomerID", inplace=True)
-
-        # Drop Top Product and Score columns efficiently
-        df_result.drop(columns=[col for col in df_result.columns if "Top" in col or "Similarity Score" in col], inplace=True)
-        survey_other_input = survey_response[['People','New_Customer']]
-        merged_df_response = pd.concat([survey_input, df_result, survey_other_input], axis=1)
-        # add Dallas time as created time
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-        dallas_time = datetime.now(ZoneInfo("America/Chicago"))
-        merged_df_response['created_time'] = dallas_time
-        # merged_df_response['created_time'] = pd.to_datetime('now')
-
+        # Generate df to be written out
+        output_df = format_output_df(input_df=survey_input,
+                                     response_df=survey_response,
+                                     recommendation_df=recommendation_df)
+        print('output_df.shape = ', output_df.shape)
+        # Sanity check
+        if output_df.empty:
+            error_message = "Error: DataFrame is empty, nothing to export."
+            print(error_message)
+            return render_template('error.html', error_message=error_message)
 
         # Append new records to Google Sheets
         from src.google_utils import export_to_google_sheets
 
-        if merged_df_response.empty:
-            print("Error: DataFrame is empty, nothing to export.")
-        # Test the whole process (clear and export)
-        merged_df = merged_df_response.copy(deep=True)
-        print('merged_df columns:', merged_df.columns)
         # Write down the header
-        export_to_google_sheets(merged_df, line=1)
+        export_to_google_sheets(output_df, line=1)
         # Write the body
-        if 'Ingredients' in merged_df.columns:
-            merged_df['Ingredients'] = merged_df['Ingredients'].astype(str)
-            merged_df['created_time'] = merged_df['created_time'].astype(str)
-        export_to_google_sheets(merged_df, line=2)
+        export_to_google_sheets(output_df, line=2)
+
+        # Show results
+        results_data = recommendation_df.set_index('Name').to_dict(orient='index')
+        print(results_data.keys())
+        # print(recommendation_df['Link'])
+        # print(recommendation_df['Image'])
+        # print(recommendation_df.columns)
 
         if not results_data:
             return render_template('result.html', error_message="No recommendations found based on your input.")
         else:
-            return render_template('result.html', responses=responses, results=results_data)
+            return render_template('result.html', responses=survey_response, results=results_data)
 
     return render_template('survey.html', questions=Questions, question_list=QUESTIONS)
 
