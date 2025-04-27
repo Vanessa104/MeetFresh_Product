@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <title>Survey</title>
 </head>
 <body>
-    <h1>Survey Form</h1>
+    <h1>Which dessert to order?</h1>
     <form method="POST">
         {% for question, options in questions.items() %}
         <label>{{ question }}</label><br>
@@ -26,7 +27,7 @@
                 </select><br><br>
             {% endif %}
         {% endfor %}
-        <button type="submit">Submit</button>
+        <button type="submit" class="wp-block-button__link">Submit</button>
     </form>
 </body>
 </html>
