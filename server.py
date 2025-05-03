@@ -15,9 +15,9 @@ all_ingredients[all_ingredients.index('Coco Sago')] = 'Sago'
 
 
 # read csv file from google sheet using published url
-# CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
+CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1_fFP0quWhpbhwiFbPIHh_ul8VPai3QINPi1tC0gXIutJuiDHhDkmGEtsw_sSFuoPdaHLDlKy9Yte/pub?gid=2112842415&single=true&output=csv'
 # Alt: read a local file:
-CSV_URL = 'menu_items_w_og_onehot_ingredients.csv'
+# CSV_URL = 'menu_items_w_og_onehot_ingredients.csv'
 
 df1 = memorize_products(CSV_URL)
 # print(df1.columns[10:])
